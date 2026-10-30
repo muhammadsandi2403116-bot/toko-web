@@ -76,6 +76,7 @@ function MenuIcon({ name, className = "h-5 w-5" }) {
 export default function Navbar() {
   const [search, setSearch] = useState("");
   const [showCategories, setShowCategories] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -90,7 +91,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white text-neutral-800 shadow-sm">
       {/* BARIS ATAS */}
-      <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-4 gap-y-3 px-3 py-3 sm:px-5 lg:flex-nowrap lg:gap-5 lg:px-8">
+      <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-2 gap-y-3 px-3 py-3 sm:gap-x-4 sm:px-5 lg:flex-nowrap lg:gap-5 lg:px-8">
         {/* LOGO */}
         <Link
           href="/"
@@ -101,30 +102,11 @@ export default function Navbar() {
           <span>Toko</span>
         </Link>
 
-        {/* DAFTAR / MASUK */}
-        <div className="order-2 ml-auto flex shrink-0 items-center gap-2 text-xs font-medium sm:text-sm lg:order-4 lg:ml-0 lg:border-l lg:border-neutral-300 lg:pl-4">
-          <Link
-            href="/daftar"
-            className="rounded-md px-1 py-2 hover:text-neutral-500 sm:px-2"
-          >
-            Daftar
-          </Link>
-
-          <span className="h-5 w-px bg-neutral-300" />
-
-          <Link
-            href="/masuk"
-            className="rounded-md px-1 py-2 hover:text-neutral-500 sm:px-2"
-          >
-            Masuk
-          </Link>
-        </div>
-
         {/* PENCARIAN */}
         <form
           onSubmit={handleSearch}
           role="search"
-          className="order-3 flex h-10 w-full min-w-0 items-center rounded-xl border border-neutral-300 px-2 transition focus-within:border-neutral-500 focus-within:ring-2 focus-within:ring-neutral-100 sm:h-11 lg:order-2 lg:flex-1"
+          className="order-2 flex h-10 min-w-0 flex-1 items-center rounded-xl border border-neutral-300 px-1.5 transition focus-within:border-neutral-500 focus-within:ring-2 focus-within:ring-neutral-100 sm:h-11 sm:px-2 lg:order-2"
         >
           <input
             type="search"
@@ -133,7 +115,7 @@ export default function Navbar() {
             aria-label="Cari produk"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-neutral-400 sm:text-base"
+            className="h-full min-w-0 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-neutral-400 sm:px-2 sm:text-base"
           />
 
           <button
@@ -155,16 +137,79 @@ export default function Navbar() {
           </button>
         </form>
 
+        {/* MENU DAFTAR / MASUK */}
+        <div className="order-4 ml-auto hidden shrink-0 items-center gap-2 border-l border-neutral-300 pl-4 text-sm font-medium md:flex lg:ml-0">
+          <Link
+            href="/daftar"
+            className="rounded-md px-2 py-2 hover:text-neutral-500"
+          >
+            Daftar
+          </Link>
+
+          <span className="h-5 w-px bg-neutral-300" />
+
+          <Link
+            href="/masuk"
+            className="rounded-md px-2 py-2 hover:text-neutral-500"
+          >
+            Masuk
+          </Link>
+        </div>
+
+        {/* MENU AKUN MOBILE */}
+        <div className="relative order-3 shrink-0 md:hidden">
+          <button
+            type="button"
+            aria-label="Buka menu akun"
+            aria-expanded={showAccountMenu}
+            aria-controls="account-menu"
+            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200 transition hover:bg-neutral-50 sm:h-11 sm:w-11"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          {showAccountMenu && (
+            <div
+              id="account-menu"
+              className="absolute right-0 top-full z-50 mt-2 w-36 rounded-xl border border-neutral-200 bg-white p-2 text-sm font-medium shadow-lg"
+            >
+              <Link
+                href="/daftar"
+                onClick={() => setShowAccountMenu(false)}
+                className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
+              >
+                Daftar
+              </Link>
+              <Link
+                href="/masuk"
+                onClick={() => setShowAccountMenu(false)}
+                className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
+              >
+                Masuk
+              </Link>
+            </div>
+          )}
+        </div>
+
         {/* MENU PENGGUNA */}
         <nav
           aria-label="Menu pengguna"
-          className="order-4 flex w-full shrink-0 items-center gap-2 overflow-x-auto pb-1 lg:order-3 lg:w-auto lg:pb-0"
+          className="order-4 flex w-full shrink-0 items-center justify-evenly gap-1 pb-1 md:justify-between lg:order-3 lg:w-auto lg:justify-start lg:gap-2 lg:pb-0"
         >
           {topMenus.map((menu) => (
             <Link
               key={menu.label}
               href={menu.href}
-              className="flex min-h-11 min-w-[68px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-neutral-200 px-2 py-1 transition hover:border-neutral-400 hover:bg-neutral-50 sm:min-w-[76px] lg:min-w-[58px] lg:border-transparent lg:px-1"
+              className="flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg border border-neutral-200 px-1 py-1 transition hover:border-neutral-400 hover:bg-neutral-50 sm:px-2 lg:min-w-[58px] lg:flex-none lg:border-transparent lg:px-1"
             >
               <MenuIcon name={menu.icon} className="h-5 w-5" />
 
@@ -176,12 +221,14 @@ export default function Navbar() {
         </nav>
       </div>
 
+      
       {/* BARIS KATEGORI */}
       <nav
         aria-label="Kategori produk"
         className="relative border-t border-neutral-100"
       >
-        <div className="mx-auto flex max-w-screen-2xl items-center gap-4 overflow-x-auto px-3 py-2.5 sm:gap-6 sm:px-5 lg:gap-8 lg:px-8">
+        <div className="relative mx-auto flex max-w-screen-2xl items-center gap-4 px-3 py-2.5 sm:gap-6 sm:px-5 lg:gap-8 lg:px-8">
+
           {/* DROPDOWN KATEGORI */}
           <div className="relative shrink-0">
             <button
@@ -218,8 +265,9 @@ export default function Navbar() {
               </svg>
             </button>
 
+            {/* PANEL DROPDOWN */}
             {showCategories && (
-              <div className="absolute left-0 top-full z-50 mt-3 w-52 rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+              <div className="absolute left-0 top-full z-60 mt-2.5 w-40 max-w-[calc(100vw-2rem)] rounded-b-2xl border border-neutral-200 bg-white p-2 shadow-xl">
                 {categories.map((category) => (
                   <Link
                     key={category}
@@ -227,9 +275,10 @@ export default function Navbar() {
                       .toLowerCase()
                       .replaceAll(" ", "-")}`}
                     onClick={() => setShowCategories(false)}
-                    className="block rounded-lg px-3 py-2.5 text-sm transition hover:bg-neutral-100"
+                    className="flex items-center justify-between rounded-lg px-1 py-3 text-sm transition hover:bg-neutral-100"
                   >
-                    {category}
+                    <span>{category}</span>
+                    <span className="text-neutral-400">›</span>
                   </Link>
                 ))}
               </div>
@@ -238,20 +287,24 @@ export default function Navbar() {
 
           <span className="h-6 w-px shrink-0 bg-neutral-300" />
 
-          {/* DAFTAR KATEGORI */}
-          {categories.map((category) => (
-            <Link
-              key={category}
-              href={`/kategori/${category
-                .toLowerCase()
-                .replaceAll(" ", "-")}`}
-              className="shrink-0 whitespace-nowrap text-sm transition hover:text-neutral-500 sm:text-base"
-            >
-              {category}
-            </Link>
-          ))}
+          {/* DAFTAR KATEGORI HORIZONTAL */}
+          <div className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-6 lg:gap-8">
+            {categories.map((category) => (
+              <Link
+                key={category}
+                href={`/kategori/${category
+                  .toLowerCase()
+                  .replaceAll(" ", "-")}`}
+                className="shrink-0 whitespace-nowrap text-sm transition hover:text-neutral-500 sm:text-base"
+              >
+                {category}
+              </Link>
+            ))}
+          </div>
+
         </div>
       </nav>
+
     </header>
   );
 }
