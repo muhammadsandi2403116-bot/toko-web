@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 const topMenus = [
   { label: "Keranjang", icon: "cart", href: "/keranjang" },
-  { label: "Bantuan", icon: "help", href: "/bantuan" },
-  { label: "Notifikasi", icon: "bell", href: "/notifikasi" },
-  { label: "Kunjungan", icon: "history", href: "/riwayat" },
+  { label: "Chat Admin", icon: "chat", action: "open-chat" },
+  { label: "Notifikasi", icon: "bell", href: "/profil/notifikasi" },
+  { label: "Kunjungan", icon: "history", href: "/profil/riwayat" },
 ];
 
 const categories = [
@@ -51,6 +51,13 @@ function MenuIcon({ name, className = "h-5 w-5" }) {
         </svg>
       );
 
+    case "chat":
+      return (
+        <svg {...common}>
+          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+        </svg>
+      );
+
     case "bell":
       return (
         <svg {...common}>
@@ -77,6 +84,31 @@ export default function Navbar() {
   const [search, setSearch] = useState("");
   const [showCategories, setShowCategories] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    function loadUser() {
+      const user = localStorage.getItem("toko-user");
+
+      if (user) {
+        try {
+          setCurrentUser(JSON.parse(user));
+        } catch {
+          setCurrentUser(null);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+    }
+
+    loadUser();
+
+    window.addEventListener("auth-change", loadUser);
+
+    return () => {
+      window.removeEventListener("auth-change", loadUser);
+    };
+  }, []);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -85,7 +117,7 @@ export default function Navbar() {
 
     if (!query) return;
 
-    window.location.href = `/search?q=${encodeURIComponent(query)}`;
+    window.location.href = `/produk?q=${encodeURIComponent(query)}`;
   }
 
   return (
@@ -137,23 +169,50 @@ export default function Navbar() {
           </button>
         </form>
 
-        {/* MENU DAFTAR / MASUK */}
-        <div className="order-4 ml-auto hidden shrink-0 items-center gap-2 border-l border-neutral-300 pl-4 text-sm font-medium md:flex lg:ml-0">
-          <Link
-            href="/daftar"
-            className="rounded-md px-2 py-2 hover:text-neutral-500"
-          >
-            Daftar
-          </Link>
+        {/* MENU AKUN DESKTOP */}
+        <div className="order-4 ml-auto hidden shrink-0 md:flex lg:ml-0">
+          {currentUser ? (
+            <Link
+              href="/profil"
+              className="flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition hover:bg-neutral-100"
+            >
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-300 bg-neutral-100">
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt="Foto profil"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-lg font-semibold text-neutral-600">
+                    {currentUser.name?.charAt(0).toUpperCase() || "U"}
+                  </span>
+                )}
+              </div>
 
-          <span className="h-5 w-px bg-neutral-300" />
+              <span className="max-w-24 truncate text-xs font-medium">
+                {currentUser.name || "Pengguna"}
+              </span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 border-l border-neutral-300 pl-4 text-sm font-medium">
+              <Link
+                href="/daftar"
+                className="rounded-md px-2 py-2 hover:text-neutral-500"
+              >
+                Daftar
+              </Link>
 
-          <Link
-            href="/masuk"
-            className="rounded-md px-2 py-2 hover:text-neutral-500"
-          >
-            Masuk
-          </Link>
+              <span className="h-5 w-px bg-neutral-300" />
+
+              <Link
+                href="/masuk"
+                className="rounded-md px-2 py-2 hover:text-neutral-500"
+              >
+                Masuk
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* MENU AKUN MOBILE */}
@@ -177,25 +236,58 @@ export default function Navbar() {
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+
           {showAccountMenu && (
             <div
               id="account-menu"
-              className="absolute right-0 top-full z-50 mt-2 w-36 rounded-xl border border-neutral-200 bg-white p-2 text-sm font-medium shadow-lg"
+              className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-neutral-200 bg-white p-2 text-sm font-medium shadow-lg"
             >
-              <Link
-                href="/daftar"
-                onClick={() => setShowAccountMenu(false)}
-                className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
-              >
-                Daftar
-              </Link>
-              <Link
-                href="/masuk"
-                onClick={() => setShowAccountMenu(false)}
-                className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
-              >
-                Masuk
-              </Link>
+              {currentUser ? (
+                <Link
+                  href="/profil"
+                  onClick={() => setShowAccountMenu(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-neutral-100"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-300 bg-neutral-100">
+                    {currentUser.avatar ? (
+                      <img
+                        src={currentUser.avatar}
+                        alt="Foto profil"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-lg font-semibold text-neutral-600">
+                        {currentUser.name?.charAt(0).toUpperCase() || "U"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="text-xs text-neutral-500">Profil</p>
+                    <p className="truncate font-semibold">
+                      {currentUser.name || "Pengguna"}
+                    </p>
+                  </div>
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/daftar"
+                    onClick={() => setShowAccountMenu(false)}
+                    className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
+                  >
+                    Daftar
+                  </Link>
+
+                  <Link
+                    href="/masuk"
+                    onClick={() => setShowAccountMenu(false)}
+                    className="block rounded-lg px-3 py-2 hover:bg-neutral-100"
+                  >
+                    Masuk
+                  </Link>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -205,19 +297,47 @@ export default function Navbar() {
           aria-label="Menu pengguna"
           className="order-4 flex w-full shrink-0 items-center justify-evenly gap-1 pb-1 md:justify-between lg:order-3 lg:w-auto lg:justify-start lg:gap-2 lg:pb-0"
         >
-          {topMenus.map((menu) => (
-            <Link
-              key={menu.label}
-              href={menu.href}
-              className="flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg border border-neutral-200 px-1 py-1 transition hover:border-neutral-400 hover:bg-neutral-50 sm:px-2 lg:min-w-[58px] lg:flex-none lg:border-transparent lg:px-1"
-            >
-              <MenuIcon name={menu.icon} className="h-5 w-5" />
+          {topMenus.map((menu) => {
+            const menuClassName =
+              "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg border border-neutral-200 px-1 py-1 transition hover:border-neutral-400 hover:bg-neutral-50 sm:px-2 lg:min-w-[58px] lg:flex-none lg:border-transparent lg:px-1";
 
-              <span className="text-[10px] leading-tight sm:text-[11px]">
-                {menu.label}
-              </span>
-            </Link>
-          ))}
+            const menuContent = (
+              <>
+                <MenuIcon name={menu.icon} className="h-5 w-5" />
+
+                <span className="text-[10px] leading-tight sm:text-[11px]">
+                  {menu.label}
+                </span>
+              </>
+            );
+
+            // Chat Admin membuka popup
+            if (menu.action === "open-chat") {
+              return (
+                <button
+                  key={menu.label}
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event("open-chat-widget"));
+                  }}
+                  className={menuClassName}
+                >
+                  {menuContent}
+                </button>
+              );
+            }
+
+            // Menu lainnya tetap menggunakan Link
+            return (
+              <Link
+                key={menu.label}
+                href={menu.href}
+                className={menuClassName}
+              >
+                {menuContent}
+              </Link>
+            );
+          })}
         </nav>
       </div>
 
@@ -271,9 +391,7 @@ export default function Navbar() {
                 {categories.map((category) => (
                   <Link
                     key={category}
-                    href={`/kategori/${category
-                      .toLowerCase()
-                      .replaceAll(" ", "-")}`}
+                    href={`/produk?category=${encodeURIComponent(category)}`}
                     onClick={() => setShowCategories(false)}
                     className="flex items-center justify-between rounded-lg px-1 py-3 text-sm transition hover:bg-neutral-100"
                   >
@@ -292,9 +410,7 @@ export default function Navbar() {
             {categories.map((category) => (
               <Link
                 key={category}
-                href={`/kategori/${category
-                  .toLowerCase()
-                  .replaceAll(" ", "-")}`}
+                href={`/produk?category=${encodeURIComponent(category)}`}
                 className="shrink-0 whitespace-nowrap text-sm transition hover:text-neutral-500 sm:text-base"
               >
                 {category}

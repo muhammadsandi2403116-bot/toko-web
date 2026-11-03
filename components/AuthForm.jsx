@@ -5,12 +5,97 @@ import Link from "next/link";
 
 export default function AuthForm({ mode }) {
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const isRegister = mode === "register";
 
-  function handleSubmit(event) {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    setMessage("Autentikasi backend belum diaktifkan.");
-  }
+
+    const emailValue = email.trim().toLowerCase();
+
+    if (!emailValue || !password.trim()) {
+      setMessage("Email dan password wajib diisi.");
+      return;
+    }
+
+    const savedUsers = localStorage.getItem("toko-users");
+    const users = savedUsers ? JSON.parse(savedUsers) : [];
+
+    if (isRegister) {
+      if (!name.trim()) {
+        setMessage("Nama wajib diisi.");
+        return;
+      }
+
+      const existingUser = users.find(
+        (user) => user.email === emailValue
+      );
+
+      if (existingUser) {
+        setMessage("Email sudah terdaftar. Silakan login.");
+        return;
+      }
+
+      const newUser = {
+        id: `USER-${Date.now()}`,
+        name: name.trim(),
+        email: emailValue,
+        password: password.trim(),
+        whatsapp: "",
+        createdAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem(
+        "toko-users",
+        JSON.stringify([...users, newUser])
+      );
+
+      // Langsung login setelah registrasi
+      const sessionUser = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        whatsapp: newUser.whatsapp,
+      };
+
+      localStorage.setItem(
+        "toko-user",
+        JSON.stringify(sessionUser)
+      );
+
+      window.dispatchEvent(new Event("auth-change"));
+      window.location.href = "/profil";
+      return;
+    }
+
+    const foundUser = users.find(
+      (user) =>
+        user.email === emailValue &&
+        user.password === password
+    );
+
+    if (!foundUser) {
+      setMessage("Email atau password salah.");
+      return;
+    }
+
+    const sessionUser = {
+      id: foundUser.id,
+      name: foundUser.name,
+      email: foundUser.email,
+      whatsapp: foundUser.whatsapp || "",
+    };
+
+    localStorage.setItem(
+      "toko-user",
+      JSON.stringify(sessionUser)
+    );
+
+    window.dispatchEvent(new Event("auth-change"));
+    window.location.href = "/profil";
+  };
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-white px-3 py-4 text-neutral-900 sm:px-6">
@@ -43,6 +128,8 @@ export default function AuthForm({ mode }) {
                   name="name"
                   type="text"
                   autoComplete="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
                   required
                   className="h-10 w-full border-b-2 border-neutral-800 bg-transparent px-1 outline-none focus:border-neutral-500"
                 />
@@ -59,8 +146,10 @@ export default function AuthForm({ mode }) {
               <input
                 id="email"
                 name="email"
-                type={isRegister ? "email" : "text"}
-                autoComplete={isRegister ? "email" : "username"}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 required
                 className="h-10 w-full border-b-2 border-neutral-800 bg-transparent px-1 outline-none focus:border-neutral-500"
               />
@@ -77,7 +166,9 @@ export default function AuthForm({ mode }) {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete={isRegister ? "new-password" : "current-password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
                 className="h-10 w-full border-b-2 border-neutral-800 bg-transparent px-1 outline-none focus:border-neutral-500"
               />
