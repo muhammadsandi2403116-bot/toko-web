@@ -1,40 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export default function NotifikasiPage() {
+  const { data: session, status } = useSession();
+  const currentUser = session?.user;
   const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState("semua");
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
 
   // Memuat notifikasi berdasarkan akun yang login
   useEffect(() => {
-    const savedUser = localStorage.getItem("toko-user");
+    if (status === "loading") {
+      return;
+    }
 
-    if (!savedUser) {
-      window.location.href = "/masuk";
+    if (!currentUser) {
+      startTransition(() => setIsLoaded(true));
       return;
     }
 
     try {
-      const user = JSON.parse(savedUser);
-
-      setCurrentUser(user);
-
-      const storageKey = `toko-notifications-${user.id}`;
+      const storageKey = `toko-notifications-${currentUser.id}`;
       const savedNotifications = localStorage.getItem(storageKey);
 
-      setNotifications(
-        savedNotifications ? JSON.parse(savedNotifications) : []
-      );
-
-      setIsLoaded(true);
+      const loadedNotifications = savedNotifications
+        ? JSON.parse(savedNotifications)
+        : [];
+      startTransition(() => {
+        setNotifications(loadedNotifications);
+        setIsLoaded(true);
+      });
     } catch (error) {
       console.error("Gagal memuat notifikasi:", error);
-      window.location.href = "/masuk";
+      startTransition(() => {
+        setNotifications([]);
+        setIsLoaded(true);
+      });
     }
-  }, []);
+  }, [status, currentUser]);
 
   // Menyimpan notifikasi berdasarkan akun
   useEffect(() => {

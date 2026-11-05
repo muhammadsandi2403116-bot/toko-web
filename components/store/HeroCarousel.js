@@ -7,6 +7,10 @@ import { banners } from "@/data/banners";
 export default function HeroCarousel() {
   const [active, setActive] = useState(0);
 
+  if (banners.length === 0) {
+    return null;
+  }
+
   const previous = () => {
     setActive((current) =>
       (current - 1 + banners.length) % banners.length

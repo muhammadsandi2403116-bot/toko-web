@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Breadcrumb from "@/components/store/Breadcrumb";
@@ -27,9 +27,32 @@ export default function ProductPageClient() {
 
   const [sortBy, setSortBy] = useState("popular");
 
+  const availableCategories = useMemo(() => {
+    const categoryMap = new Map();
+
+    for (const product of products) {
+      if (!product.category) {
+        continue;
+      }
+
+      const category = categoryMap.get(product.category) || new Set();
+      if (product.subcategory) {
+        category.add(product.subcategory);
+      }
+      categoryMap.set(product.category, category);
+    }
+
+    return Array.from(categoryMap, ([name, children]) => ({
+      name,
+      children: Array.from(children),
+    }));
+  }, []);
+
   useEffect(() => {
-    setSelectedCategory(categoryFromUrl || "");
-    setSelectedCategoryParent("");
+    startTransition(() => {
+      setSelectedCategory(categoryFromUrl || "");
+      setSelectedCategoryParent("");
+    });
   }, [categoryFromUrl]);
 
   const handleCategoryChange = (category, parent = "") => {
@@ -149,6 +172,7 @@ export default function ProductPageClient() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside>
             <ProductSidebar
+              categories={availableCategories}
               selectedCategory={selectedCategory}
               onCategoryChange={handleCategoryChange}
               minPrice={draftMinPrice}
@@ -179,27 +203,33 @@ export default function ProductPageClient() {
               </p>
             </div>
             {filteredProducts.length > 0 ? (
-            <ProductGrid products={filteredProducts} />
+              <ProductGrid products={filteredProducts} />
             ) : (
             <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
                 <div className="mb-4 text-5xl">🔎</div>
 
                 <h2 className="text-lg font-semibold text-gray-800">
-                Produk tidak ditemukan
+                {products.length === 0
+                  ? "Produk belum tersedia"
+                  : "Produk tidak ditemukan"}
                 </h2>
 
                 <p className="mt-2 text-sm text-gray-500">
-                Maaf, kami tidak menemukan produk
-                {searchQuery ? ` dengan kata kunci "${searchQuery}"` : ""}
-                . Coba gunakan kata kunci lainnya.
+                {products.length === 0
+                  ? "Katalog akan ditampilkan setelah data produk tersedia."
+                  : `Maaf, kami tidak menemukan produk${
+                      searchQuery ? ` dengan kata kunci "${searchQuery}"` : ""
+                    }. Coba gunakan kata kunci lainnya.`}
                 </p>
 
-                <Link
-                href="/produk"
-                className="mt-5 inline-flex rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-orange-600"
-                >
-                Lihat Semua Produk
-                </Link>
+                {products.length > 0 && (
+                  <Link
+                    href="/produk"
+                    className="mt-5 inline-flex rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-orange-600"
+                  >
+                    Lihat Semua Produk
+                  </Link>
+                )}
             </div>
             )}
           </section>
