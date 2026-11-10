@@ -35,7 +35,7 @@ export default function CheckoutPage() {
       startTransition(() => {
         setCart(Array.isArray(parsedCart) ? parsedCart : []);
         setName(user?.name || "");
-        setWhatsapp(user?.whatsapp || "");
+        setWhatsapp(String(user?.whatsapp || ""));
       });
     } catch (error) {
       console.error("Gagal mengambil data checkout:", error);
@@ -58,6 +58,9 @@ export default function CheckoutPage() {
   );
 
   const handleConfirmOrder = () => {
+    const whatsappValue = String(user?.whatsapp || whatsapp).trim();
+    const normalizedWhatsapp = whatsappValue.replace(/[\s()-]/g, "");
+
     if (cart.length === 0) {
       alert("Keranjang kamu masih kosong.");
       return;
@@ -69,16 +72,12 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!(user?.whatsapp || whatsapp).trim()) {
+    if (!whatsappValue) {
       alert("Silakan isi nomor WhatsApp terlebih dahulu.");
       return;
     }
 
-    if (
-      !/^[0-9+]{9,15}$/.test(
-        (user?.whatsapp || whatsapp).replace(/\s/g, "")
-      )
-    ) {
+    if (!/^\+?\d{9,15}$/.test(normalizedWhatsapp)) {
       alert("Nomor WhatsApp tidak valid.");
       return;
     }
@@ -95,7 +94,7 @@ export default function CheckoutPage() {
 
       // Data pembeli
       name: user?.name || name,
-      whatsapp: user?.whatsapp || whatsapp,
+      whatsapp: whatsappValue,
 
       // Detail transaksi
       items: cart,
@@ -311,8 +310,8 @@ export default function CheckoutPage() {
               {name || "Pengguna"}
             </p>
 
-            {whatsapp ? (
-              <p className="text-gray-500">{whatsapp}</p>
+            {user?.whatsapp ? (
+              <p className="text-gray-500">{String(user.whatsapp)}</p>
             ) : (
               <div className="mt-4">
                 <label
