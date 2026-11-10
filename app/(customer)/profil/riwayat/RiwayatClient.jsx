@@ -1,14 +1,13 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 
 export default function PurchaseHistoryPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const user = session?.user;
+
+  const [user, setUser] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -20,27 +19,26 @@ export default function PurchaseHistoryPage() {
     }).format(number || 0);
 
   useEffect(() => {
-    if (status === "loading") {
+    const savedUser = localStorage.getItem("toko-user");
+
+    if (!savedUser) {
+      router.replace("/masuk");
       return;
     }
 
-    if (!user) {
-      startTransition(() => setLoaded(true));
-      return;
-    }
+    const currentUser = JSON.parse(savedUser);
+    setUser(currentUser);
 
     const savedOrders = localStorage.getItem("toko-orders");
     const allOrders = savedOrders ? JSON.parse(savedOrders) : [];
 
     const userOrders = allOrders.filter(
-      (order) => order.userId === user.id
+      (order) => order.userId === currentUser.id
     );
 
-    startTransition(() => {
-      setOrders(userOrders);
-      setLoaded(true);
-    });
-  }, [status, user]);
+    setOrders(userOrders);
+    setLoaded(true);
+  }, [router]);
 
   const openTransaction = (order) => {
     localStorage.setItem(
@@ -51,7 +49,7 @@ export default function PurchaseHistoryPage() {
     router.push("/pesanan/berhasil");
   };
 
-  if (status === "loading" || !loaded || !user) {
+  if (!loaded || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-gray-500">Memuat riwayat pembelian...</p>

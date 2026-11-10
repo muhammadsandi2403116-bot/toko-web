@@ -1,10 +1,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { categories as productCategories } from "@/data/categories";
 
 const topMenus = [
   { label: "Keranjang", icon: "cart", href: "/keranjang" },
@@ -13,7 +11,14 @@ const topMenus = [
   { label: "Kunjungan", icon: "history", href: "/profil/riwayat" },
 ];
 
-const categories = productCategories.map((category) => category.name);
+const categories = [
+  "Sembako",
+  "ATK",
+  "Rokok",
+  "Kardus",
+  "Minuman",
+  "Makanan Ringan",
+];
 
 function MenuIcon({ name, className = "h-5 w-5" }) {
   const common = {
@@ -79,8 +84,31 @@ export default function Navbar() {
   const [search, setSearch] = useState("");
   const [showCategories, setShowCategories] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
-  const { data: session, status } = useSession();
-  const currentUser = session?.user ?? null;
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    function loadUser() {
+      const user = localStorage.getItem("toko-user");
+
+      if (user) {
+        try {
+          setCurrentUser(JSON.parse(user));
+        } catch {
+          setCurrentUser(null);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+    }
+
+    loadUser();
+
+    window.addEventListener("auth-change", loadUser);
+
+    return () => {
+      window.removeEventListener("auth-change", loadUser);
+    };
+  }, []);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -143,15 +171,15 @@ export default function Navbar() {
 
         {/* MENU AKUN DESKTOP */}
         <div className="order-4 ml-auto hidden shrink-0 md:flex lg:ml-0">
-          {status === "loading" ? null : currentUser ? (
+          {currentUser ? (
             <Link
               href="/profil"
               className="flex flex-col items-center gap-1 rounded-xl px-3 py-1 transition hover:bg-neutral-100"
             >
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-neutral-300 bg-neutral-100">
-                {currentUser.image ? (
+                {currentUser.avatar ? (
                   <img
-                    src={currentUser.image}
+                    src={currentUser.avatar}
                     alt="Foto profil"
                     className="h-full w-full object-cover"
                   />
@@ -214,16 +242,16 @@ export default function Navbar() {
               id="account-menu"
               className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-neutral-200 bg-white p-2 text-sm font-medium shadow-lg"
             >
-              {status === "loading" ? null : currentUser ? (
+              {currentUser ? (
                 <Link
                   href="/profil"
                   onClick={() => setShowAccountMenu(false)}
                   className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-neutral-100"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-300 bg-neutral-100">
-                    {currentUser.image ? (
+                    {currentUser.avatar ? (
                       <img
-                        src={currentUser.image}
+                        src={currentUser.avatar}
                         alt="Foto profil"
                         className="h-full w-full object-cover"
                       />
@@ -314,11 +342,11 @@ export default function Navbar() {
       </div>
 
       
-      {categories.length > 0 && (
-        <nav
-          aria-label="Kategori produk"
-          className="relative border-t border-neutral-100"
-        >
+      {/* BARIS KATEGORI */}
+      <nav
+        aria-label="Kategori produk"
+        className="relative border-t border-neutral-100"
+      >
         <div className="relative mx-auto flex max-w-screen-2xl items-center gap-4 px-3 py-2.5 sm:gap-6 sm:px-5 lg:gap-8 lg:px-8">
 
           {/* DROPDOWN KATEGORI */}
@@ -391,8 +419,7 @@ export default function Navbar() {
           </div>
 
         </div>
-        </nav>
-      )}
+      </nav>
 
     </header>
   );

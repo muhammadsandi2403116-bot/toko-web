@@ -1,20 +1,14 @@
 
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-
-function generateTransactionCode() {
-  return `TRX${Date.now()}`;
-}
 
 export default function CheckoutPage() {
-  const { data: session, status } = useSession();
-  const user = session?.user;
   const [cart, setCart] = useState([]);
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [showQris, setShowQris] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -32,19 +26,26 @@ export default function CheckoutPage() {
       const savedCart = localStorage.getItem("toko-cart");
       const parsedCart = savedCart ? JSON.parse(savedCart) : [];
 
-      startTransition(() => {
-        setCart(Array.isArray(parsedCart) ? parsedCart : []);
-        setName(user?.name || "");
-        setWhatsapp(user?.whatsapp || "");
-      });
+      setCart(Array.isArray(parsedCart) ? parsedCart : []);
+
+      // Cek data pengguna yang login
+      const savedUser = localStorage.getItem("toko-user");
+
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+
+        setIsLoggedIn(true);
+        setName(user.name || user.fullName || user.nama || "");
+        setWhatsapp(
+          user.whatsapp || user.phone || user.nomorWhatsapp || ""
+        );
+      }
     } catch (error) {
       console.error("Gagal mengambil data checkout:", error);
     }
 
-    startTransition(() => setIsLoaded(status !== "loading"));
-  }, [status, user]);
-
-  const isLoggedIn = status === "authenticated" && Boolean(user);
+    setIsLoaded(true);
+  }, []);
 
   const totalQuantity = cart.reduce(
     (total, item) => total + Number(item.quantity || 1),
@@ -69,21 +70,24 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!(user?.whatsapp || whatsapp).trim()) {
+    if (!isLoggedIn && !whatsapp.trim()) {
       alert("Silakan isi nomor WhatsApp terlebih dahulu.");
       return;
     }
 
     if (
-      !/^[0-9+]{9,15}$/.test(
-        (user?.whatsapp || whatsapp).replace(/\s/g, "")
-      )
+      !isLoggedIn &&
+      !/^[0-9+]{9,15}$/.test(whatsapp.replace(/\s/g, ""))
     ) {
       alert("Nomor WhatsApp tidak valid.");
       return;
     }
 
-    const transactionCode = generateTransactionCode();
+    // Ambil data pengguna yang sedang login
+    const savedUser = localStorage.getItem("toko-user");
+    const user = savedUser ? JSON.parse(savedUser) : null;
+
+    const transactionCode = `TRX${Date.now()}`;
 
     const orderData = {
       transactionCode,
@@ -132,7 +136,7 @@ export default function CheckoutPage() {
     setShowQris(true);
   };
 
-  if (!isLoaded || status === "loading") {
+  if (!isLoaded) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50">
         <p className="text-gray-500">Memuat halaman pembayaran...</p>
@@ -311,26 +315,9 @@ export default function CheckoutPage() {
               {name || "Pengguna"}
             </p>
 
-            {whatsapp ? (
-              <p className="text-gray-500">{whatsapp}</p>
-            ) : (
-              <div className="mt-4">
-                <label
-                  htmlFor="checkout-whatsapp"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Nomor WA
-                </label>
-                <input
-                  id="checkout-whatsapp"
-                  type="tel"
-                  value={whatsapp}
-                  onChange={(event) => setWhatsapp(event.target.value)}
-                  placeholder="Silahkan isi nomor WA anda"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                />
-              </div>
-            )}
+            <p className="text-gray-500">
+              {whatsapp || "Nomor WhatsApp belum tersedia"}
+            </p>
           </section>
         )}
 

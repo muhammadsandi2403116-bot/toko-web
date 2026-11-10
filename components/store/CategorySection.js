@@ -101,10 +101,6 @@ export default function CategorySection() {
     ...categories,
   ];
 
-  if (categories.length === 0) {
-    return null;
-  }
-
   return (
     <section>
       {/* JUDUL */}
