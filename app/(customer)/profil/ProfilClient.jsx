@@ -2,20 +2,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export default function ProfilePage() {
-  const [user, setUser] = useState(null);
+  const { data: session, status } = useSession();
+  const user = session?.user;
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem("toko-user");
-
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-  }, []);
-
-  if (!user) {
+  if (status === "loading" || !user) {
     return <p className="text-gray-500">Memuat informasi akun...</p>;
   }
 
@@ -24,7 +17,7 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold">Profil Saya</h1>
 
       <p className="mt-2 text-gray-500">
-        Informasi akun Toko Barokah.
+        Informasi User Website Toko barokah.
       </p>
 
       <div className="mt-8 space-y-5">
