@@ -106,7 +106,7 @@ export default function CategorySection() {
   }
 
   return (
-    <section>
+    <section data-home-reveal>
       {/* JUDUL */}
       <h2 className="mb-6 text-lg font-semibold text-neutral-800 sm:text-xl">
         Kategori Produk
@@ -134,6 +134,7 @@ export default function CategorySection() {
           {duplicatedCategories.map((category, index) => (
             <Link
               key={`${category.name}-${index}`}
+              data-home-stagger
               href={`/produk?category=${encodeURIComponent(
                 category.name
               )}`}

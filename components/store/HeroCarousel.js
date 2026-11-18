@@ -1,15 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { animate } from "animejs";
 import { banners } from "@/data/banners";
 
 export default function HeroCarousel() {
   const [active, setActive] = useState(0);
+  const panelsRef = useRef(null);
+  const hasMounted = useRef(false);
 
-  if (banners.length === 0) {
-    return null;
-  }
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const panels = panelsRef.current?.querySelectorAll(
+      "[data-carousel-panel]"
+    );
+
+    if (panels?.length) {
+      animate(panels, {
+        opacity: [0, 1],
+        y: [10, 0],
+        duration: 340,
+        ease: "outCubic",
+      });
+    }
+  }, [active]);
+
+  if (!banners.length) return null;
+
+  const currentBanner = banners[active];
+  const previousBanner = banners[
+    (active - 1 + banners.length) % banners.length
+  ];
+  const nextBanner = banners[(active + 1) % banners.length];
 
   const previous = () => {
     setActive((current) =>
@@ -23,68 +55,55 @@ export default function HeroCarousel() {
     );
   };
 
-  const getBanner = (offset) => {
-    return banners[
-      (active + offset + banners.length) % banners.length
-    ];
-  };
-
   return (
-    <section className="relative">
-      <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[0.85fr_1.5fr_0.85fr]">
+    <section data-home-reveal className="relative">
+      <div
+        ref={panelsRef}
+        className="grid grid-cols-1 items-center gap-4 md:grid-cols-[0.85fr_1.5fr_0.85fr]"
+      >
 
         {/* PROMO KIRI */}
-        <div className="relative hidden min-h-[17rem] w-full overflow-hidden rounded-xl bg-orange-100 p-5 transition-all duration-500 md:flex md:flex-col md:justify-center">
-          <span className="text-xs font-semibold uppercase tracking-widest text-orange-600">
-            {getBanner(-1).type === "promo"
-              ? "Special Offer"
-              : "Featured"}
-          </span>
-
-          <h2 className="mt-2 text-2xl font-bold text-neutral-800">
-            {getBanner(-1).title}
-          </h2>
-
-          <p className="mt-2 text-sm text-neutral-600">
-            {getBanner(-1).subtitle}
-          </p>
+        <div data-carousel-panel className="relative hidden min-h-[17rem] w-full overflow-hidden rounded-xl p-5 transition-all duration-500 md:flex md:flex-col md:justify-center">
+          <div className="relative mb-4 aspect-[16/9] w-full shrink-0 overflow-hidden rounded-lg">
+            <Image
+              src={previousBanner.image}
+              alt={previousBanner.title}
+              fill
+              sizes="(max-width: 1024px) 20vw, 15vw"
+              className="object-contain"
+            />
+          </div>
         </div>
 
         {/* BANNER UTAMA */}
-        <div className="flex min-h-[24rem] w-full flex-col items-center justify-center rounded-xl bg-neutral-900 px-6 py-8 text-center text-white transition-all duration-500">
-          <span className="mb-3 rounded-full bg-white/15 px-4 py-1 text-xs font-medium">
-            Toko Barokah
-          </span>
-
-          <h1 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
-            {banners[active].title}
-          </h1>
-
-          <p className="mt-3 max-w-sm text-sm text-neutral-300 sm:text-base">
-            {banners[active].subtitle}
-          </p>
-
+        <div data-carousel-panel className="relative aspect-[16/10] w-full overflow-hidden rounded-xl md:aspect-auto md:min-h-[24rem]">
           <Link
-            href="/produk"
-            className="mt-6 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200"
+            href={currentBanner.href || "/produk"}
+            aria-label={`Lihat produk ${currentBanner.title}`}
+            className="absolute inset-0 block"
           >
-            Lihat Produk
+            <Image
+              src={currentBanner.image}
+              alt={currentBanner.title}
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 60vw"
+              className="object-contain"
+            />
           </Link>
         </div>
 
         {/* PROMO KANAN */}
-        <div className="relative hidden min-h-[17rem] w-full overflow-hidden rounded-xl bg-blue-100 p-5 transition-all duration-500 md:flex md:flex-col md:justify-center">
-          <span className="text-xs font-semibold uppercase tracking-widest text-blue-600">
-            Promo
-          </span>
-
-          <h2 className="mt-2 text-2xl font-bold text-neutral-800">
-            {getBanner(1).title}
-          </h2>
-
-          <p className="mt-2 text-sm text-neutral-600">
-            {getBanner(1).subtitle}
-          </p>
+        <div data-carousel-panel className="relative hidden min-h-[17rem] w-full overflow-hidden rounded-xl p-5 transition-all duration-500 md:flex md:flex-col md:justify-center">
+          <div className="relative mb-4 aspect-[16/9] w-full shrink-0 overflow-hidden rounded-lg bg-white/70">
+            <Image
+              src={nextBanner.image}
+              alt={nextBanner.title}
+              fill
+              sizes="(max-width: 1024px) 20vw, 15vw"
+              className="object-contain"
+            />
+          </div>
         </div>
       </div>
 
@@ -93,7 +112,7 @@ export default function HeroCarousel() {
         type="button"
         onClick={previous}
         aria-label="Banner sebelumnya"
-        className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-200 bg-white shadow-md transition hover:bg-neutral-100 md:left-3"
+        className="absolute left-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-200 bg-white shadow-md transition hover:bg-neutral-100 md:left-3"
       >
         ←
       </button>
@@ -103,7 +122,7 @@ export default function HeroCarousel() {
         type="button"
         onClick={next}
         aria-label="Banner berikutnya"
-        className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-200 bg-white shadow-md transition hover:bg-neutral-100 md:right-3"
+        className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-200 bg-white shadow-md transition hover:bg-neutral-100 md:right-3"
       >
         →
       </button>

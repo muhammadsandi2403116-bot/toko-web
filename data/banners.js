@@ -1,22 +1,30 @@
 export const banners = [
   {
-    title: "Promo Spesial",
-    subtitle: "Temukan berbagai penawaran menarik",
+    title: "Promo Kopi Gula Aren",
+    subtitle: "Temani malammu dengan kopi manis",
     type: "promo",
+    image: "/banners/top_gula_aren.jpeg",
+    href: "/produk/12",
   },
   {
-    title: "Produk Unggulan",
-    subtitle: "Pilihan produk terbaik untukmu",
+    title: "Produk Baru Tersedia",
+    subtitle: "Kini tersedia Collagena di Toko Barokah",
     type: "featured",
+    image: "/banners/collagena.jpeg",
+    href: "/produk/11",
   },
   {
     title: "Promo Menarik",
-    subtitle: "Belanja lebih hemat setiap hari",
-    type: "promo",
+    subtitle: "Beli kopi gratis gelas cantik",
+    type: "featured",
+    image: "/banners/kopi+gelas.jpeg",
+    href: "/produk?q=kopi",
   },
   {
-    title: "Koleksi Pilihan",
-    subtitle: "Temukan produk favoritmu di sini",
+    title: "Djarum Black Matcha",
+    subtitle: "Shiro Blend & Kuro Blend",
     type: "featured",
+    image: "/banners/Djarum_Black_Matcha_Duo.png",
+    href: "/produk?q=Djarum%20Black%20Matcha",
   },
 ];

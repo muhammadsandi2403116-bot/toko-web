@@ -3,14 +3,80 @@
 
 import { startTransition, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { adminWhatsAppUrl } from "@/lib/whatsapp";
+import {
+  addPricingToItems,
+  getCartSummary,
+  getItemPricing,
+} from "@/lib/promotions";
+import { useNotification } from "@/components/ui/NotificationProvider";
 
 function generateTransactionCode() {
-  return `TRX${Date.now()}`;
+  return `TRX-${crypto.randomUUID()}`;
+}
+
+const PAYMENT_PROVIDERS = [
+  {
+    label: "Bank",
+    options: [
+      "Bank BCA",
+      "Bank Mandiri",
+      "Bank BRI",
+      "Bank BNI",
+      "Bank BSI",
+      "Bank BTN",
+      "Bank CIMB Niaga",
+      "Bank Danamon",
+      "Bank Permata",
+      "Bank Mega",
+      "Bank Jago",
+      "Bank Neo Commerce",
+      "SeaBank",
+      "Lainnya",
+    ],
+  },
+  {
+    label: "E-Wallet",
+    options: ["GoPay", "OVO", "DANA", "ShopeePay", "LinkAja", "i.Saku", "Lainnya"],
+  },
+];
+
+const MAX_PROOF_SIZE = 1024 * 1024;
+const ALLOWED_PROOF_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("File bukti pembayaran gagal dibaca."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function hasValidImageSignature(file) {
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isPng =
+    bytes.length >= 8 &&
+    [137, 80, 78, 71, 13, 10, 26, 10].every(
+      (value, index) => bytes[index] === value
+    );
+  const isJpeg = bytes.length >= 3 && bytes[0] === 255 &&
+    bytes[1] === 216 && bytes[2] === 255;
+  const isWebp =
+    bytes.length >= 12 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+
+  return isPng || isJpeg || isWebp;
 }
 
 export default function CheckoutPage() {
   const { data: session, status } = useSession();
+  const { notify } = useNotification();
+  const router = useRouter();
   const user = session?.user;
   const [cart, setCart] = useState([]);
   const [name, setName] = useState("");
@@ -18,6 +84,12 @@ export default function CheckoutPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [showQris, setShowQris] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [paymentProvider, setPaymentProvider] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [proofFile, setProofFile] = useState(null);
+  const [proofPreview, setProofPreview] = useState("");
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [isValidatingProof, setIsValidatingProof] = useState(false);
 
   const formatRupiah = (number) =>
     new Intl.NumberFormat("id-ID", {
@@ -46,43 +118,44 @@ export default function CheckoutPage() {
 
   const isLoggedIn = status === "authenticated" && Boolean(user);
 
-  const totalQuantity = cart.reduce(
-    (total, item) => total + Number(item.quantity || 1),
-    0
-  );
+  const cartSummary = getCartSummary(cart);
+  const totalQuantity = cartSummary.quantity;
+  const totalPrice = cartSummary.total;
 
-  const totalPrice = cart.reduce(
-    (total, item) =>
-      total + Number(item.price || 0) * Number(item.quantity || 1),
-    0
-  );
+  useEffect(() => {
+    if (!proofPreview) return undefined;
+    return () => URL.revokeObjectURL(proofPreview);
+  }, [proofPreview]);
 
   const handleConfirmOrder = () => {
     const whatsappValue = String(user?.whatsapp || whatsapp).trim();
     const normalizedWhatsapp = whatsappValue.replace(/[\s()-]/g, "");
 
     if (cart.length === 0) {
-      alert("Keranjang kamu masih kosong.");
+      notify("Keranjang kamu masih kosong.", { type: "warning" });
       return;
     }
 
     // Validasi data untuk pengguna yang belum login
     if (!isLoggedIn && !name.trim()) {
-      alert("Silakan isi nama terlebih dahulu.");
+      notify("Silakan isi nama terlebih dahulu.", { type: "warning" });
       return;
     }
 
     if (!whatsappValue) {
-      alert("Silakan isi nomor WhatsApp terlebih dahulu.");
+      notify("Silakan isi nomor WhatsApp terlebih dahulu.", {
+        type: "warning",
+      });
       return;
     }
 
     if (!/^\+?\d{9,15}$/.test(normalizedWhatsapp)) {
-      alert("Nomor WhatsApp tidak valid.");
+      notify("Nomor WhatsApp tidak valid.", { type: "error" });
       return;
     }
 
     const transactionCode = generateTransactionCode();
+    const orderItems = addPricingToItems(cart);
 
     const orderData = {
       transactionCode,
@@ -97,8 +170,11 @@ export default function CheckoutPage() {
       whatsapp: whatsappValue,
 
       // Detail transaksi
-      items: cart,
+      items: orderItems,
       totalPrice,
+      originalTotal: cartSummary.originalSubtotal,
+      promotionDiscount: cartSummary.discount,
+      bonusQuantity: cartSummary.bonusQuantity,
       paymentMethod: "QRIS",
       paymentStatus: "SIMULASI",
     };
@@ -109,26 +185,173 @@ export default function CheckoutPage() {
       JSON.stringify(orderData)
     );
 
-    // Simpan transaksi ke riwayat jika pengguna login
-    if (user?.id) {
-      const savedOrders = localStorage.getItem("toko-orders");
-      const orders = savedOrders ? JSON.parse(savedOrders) : [];
-
-      const updatedOrders = [
-        orderData,
-        ...orders.filter(
-          (order) => order.transactionCode !== transactionCode
-        ),
-      ];
-
-      localStorage.setItem(
-        "toko-orders",
-        JSON.stringify(updatedOrders)
-      );
-    }
+    const savedOrders = localStorage.getItem("toko-orders");
+    const orders = savedOrders ? JSON.parse(savedOrders) : [];
+    const updatedOrders = [
+      orderData,
+      ...orders.filter((order) => order.transactionCode !== transactionCode),
+    ];
+    localStorage.setItem("toko-orders", JSON.stringify(updatedOrders));
 
     // Tampilkan QRIS simulasi
     setShowQris(true);
+  };
+
+  const handleProofFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setProofFile(null);
+      setProofPreview("");
+      return;
+    }
+
+    if (!ALLOWED_PROOF_TYPES.includes(file.type)) {
+      setProofFile(null);
+      setProofPreview("");
+      event.target.value = "";
+      notify("Format bukti harus PNG, JPG, atau WebP.", { type: "error" });
+      return;
+    }
+
+    if (file.size > MAX_PROOF_SIZE) {
+      setProofFile(null);
+      setProofPreview("");
+      event.target.value = "";
+      notify("Ukuran gambar bukti maksimal 1 MB.", { type: "error" });
+      return;
+    }
+
+    setIsValidatingProof(true);
+    try {
+      if (!(await hasValidImageSignature(file))) {
+        setProofFile(null);
+        setProofPreview("");
+        event.target.value = "";
+        notify("Isi file tidak sesuai format gambar PNG, JPG, atau WebP.", {
+          type: "error",
+        });
+        return;
+      }
+
+      setProofFile(file);
+      setProofPreview(URL.createObjectURL(file));
+    } catch (error) {
+      console.error("Gagal memvalidasi gambar bukti:", error);
+      setProofFile(null);
+      setProofPreview("");
+      event.target.value = "";
+      notify("Gambar bukti tidak dapat dibaca. Pilih file gambar lain.", {
+        type: "error",
+      });
+    } finally {
+      setIsValidatingProof(false);
+    }
+  };
+
+  const handleSubmitPaymentDetails = async () => {
+    if (!paymentProvider) {
+      notify("Pilih bank atau e-wallet yang digunakan.", {
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!senderName.trim()) {
+      notify("Isi nama pengirim sesuai rekening atau e-wallet.", {
+        type: "warning",
+      });
+      return;
+    }
+
+    if (!proofFile) {
+      notify("Unggah bukti pembayaran terlebih dahulu.", {
+        type: "warning",
+      });
+      return;
+    }
+
+    if (isValidatingProof) {
+      notify("Tunggu sampai validasi gambar selesai.", { type: "info" });
+      return;
+    }
+
+    setIsSavingPayment(true);
+    let proofStorageKey;
+    let originalProofValue;
+    let originalOrderValue;
+    let originalOrdersValue;
+    let originalCartValue;
+
+    try {
+      originalOrderValue = localStorage.getItem("toko-current-order");
+      const currentOrder = JSON.parse(originalOrderValue || "null");
+
+      if (!currentOrder?.transactionCode) {
+        throw new Error("Pesanan tidak ditemukan. Silakan konfirmasi ulang.");
+      }
+
+      const proofData = await readFileAsDataUrl(proofFile);
+      proofStorageKey = `toko-payment-proof-${currentOrder.transactionCode}`;
+      originalProofValue = localStorage.getItem(proofStorageKey);
+      originalCartValue = localStorage.getItem("toko-cart");
+
+      const updatedOrder = {
+        ...currentOrder,
+        paymentProvider,
+        senderName: senderName.trim(),
+        paymentProof: {
+          storageKey: proofStorageKey,
+          fileName: proofFile.name,
+          fileType: proofFile.type,
+          fileSize: proofFile.size,
+        },
+        paymentStatus: "MENUNGGU_VERIFIKASI",
+      };
+
+      localStorage.setItem(proofStorageKey, proofData);
+      localStorage.setItem("toko-current-order", JSON.stringify(updatedOrder));
+
+      originalOrdersValue = localStorage.getItem("toko-orders");
+      const orders = originalOrdersValue ? JSON.parse(originalOrdersValue) : [];
+      const updatedOrders = orders.map((order) =>
+        order.transactionCode === updatedOrder.transactionCode
+          ? updatedOrder
+          : order
+      );
+      localStorage.setItem("toko-orders", JSON.stringify(updatedOrders));
+
+      localStorage.setItem("toko-cart", JSON.stringify([]));
+      router.push("/pesanan/berhasil");
+    } catch (error) {
+      const restoreStorageValue = (key, value) => {
+        try {
+          if (value === null) {
+            localStorage.removeItem(key);
+          } else if (value !== undefined) {
+            localStorage.setItem(key, value);
+          }
+        } catch (restoreError) {
+          console.error(`Gagal memulihkan penyimpanan ${key}:`, restoreError);
+        }
+      };
+
+      if (proofStorageKey && originalProofValue !== undefined) {
+        restoreStorageValue(proofStorageKey, originalProofValue);
+      }
+      restoreStorageValue("toko-current-order", originalOrderValue);
+      restoreStorageValue("toko-orders", originalOrdersValue);
+      restoreStorageValue("toko-cart", originalCartValue);
+
+      console.error("Gagal menyimpan detail pembayaran:", error);
+      notify(
+        error.name === "QuotaExceededError"
+          ? "Penyimpanan browser penuh. Hapus beberapa data browser lalu coba lagi."
+          : error.message || "Gagal menyimpan bukti pembayaran.",
+        { type: "error", duration: 6000 }
+      );
+    } finally {
+      setIsSavingPayment(false);
+    }
   };
 
   if (!isLoaded || status === "loading") {
@@ -191,9 +414,11 @@ export default function CheckoutPage() {
           </h1>
 
           <Link
-            href="/bantuan"
+            href={adminWhatsAppUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-lg p-2 text-gray-700 transition hover:bg-gray-100 hover:text-red-600"
-            aria-label="Chat admin"
+            aria-label="Hubungi admin melalui WhatsApp"
           >
             <svg
               className="h-6 w-6"
@@ -214,7 +439,7 @@ export default function CheckoutPage() {
               />
             </svg>
 
-            <span className="hidden sm:inline">Chat Admin</span>
+            <span className="hidden sm:inline">WhatsApp</span>
           </Link>
         </div>
       </header>
@@ -336,63 +561,41 @@ export default function CheckoutPage() {
         {/* AREA PEMBAYARAN */}
         <section className="grid grid-cols-1 gap-6 rounded-2xl bg-white p-4 shadow-sm sm:p-6 lg:grid-cols-2">
           {/* PANEL QRIS */}
-          <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl bg-gray-100 p-6 sm:min-h-[400px]">
+          <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl bg-gray-100 p-4 sm:min-h-[400px] sm:p-6">
             {showQris ? (
               <>
-                <div className="flex h-56 w-56 items-center justify-center rounded-xl border-2 border-dashed border-gray-400 bg-white p-4 sm:h-64 sm:w-64">
-                  <div className="text-center">
-                    <svg
-                      className="mx-auto h-16 w-16 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM19 14h2M14 19h3M19 19h2"
-                      />
-                    </svg>
-
-                    <p className="mt-3 text-sm font-semibold text-gray-500">
-                      QRIS akan ditampilkan di sini
-                    </p>
-                  </div>
+                <div className="relative aspect-square w-full max-w-80 overflow-hidden rounded-xl bg-white p-3 shadow-sm sm:p-4">
+                  <Image
+                    src="/images/Qris.png"
+                    alt="Kode pembayaran QRIS Toko Barokah"
+                    fill
+                    sizes="(max-width: 640px) 80vw, (max-width: 1024px) 50vw, 320px"
+                    className="object-contain p-3 sm:p-4"
+                    priority
+                  />
                 </div>
 
                 <p className="mt-5 text-center font-semibold text-gray-700">
                   Silakan scan QRIS untuk melakukan pembayaran
                 </p>
-
-                <p className="mt-2 text-center text-sm text-gray-500">
-                  QRIS asli akan terhubung setelah integrasi payment gateway.
-                </p>
+                <a
+                  href="/images/Qris.png"
+                  download="QRIS-Toko-Barokah.png"
+                  className="mt-4 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Unduh QRIS
+                </a>
               </>
             ) : (
               <>
-                <div className="flex h-56 w-56 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-white p-5 sm:h-64 sm:w-64">
-                  <svg
-                    className="h-16 w-16 text-gray-300"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM19 14h2M14 19h3M19 19h2"
-                    />
-                  </svg>
-
-                  <p className="mt-3 text-center text-sm font-medium text-gray-400">
-                    QRIS akan muncul setelah konfirmasi
+                <div className="flex aspect-square w-full max-w-80 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-white p-5">
+                  <p className="text-center text-sm font-medium text-gray-400">
+                    QRIS akan ditampilkan setelah konfirmasi pesanan
                   </p>
                 </div>
 
-                <p className="mt-5 text-center text-gray-500">
-                  Kode QR pembayaran belum ditampilkan
+                <p className="mt-5 text-center text-sm text-gray-500">
+                  Konfirmasi pesanan untuk menampilkan kode pembayaran.
                 </p>
               </>
             )}
@@ -402,7 +605,7 @@ export default function CheckoutPage() {
           <div className="flex flex-col gap-5">
             {/* TOTAL */}
             <div className="rounded-2xl bg-blue-600 p-5 text-white sm:p-6">
-              <p className="text-lg">Total</p>
+              <p className="text-lg">Total pembayaran</p>
 
               <p className="mt-1 break-words text-3xl font-bold sm:text-4xl">
                 {formatRupiah(totalPrice)}
@@ -420,7 +623,9 @@ export default function CheckoutPage() {
                   type="button"
                   className="font-semibold text-red-600"
                   onClick={() =>
-                    alert("Saat ini metode pembayaran hanya QRIS.")
+                    notify("Saat ini metode pembayaran hanya QRIS.", {
+                      type: "info",
+                    })
                   }
                 >
                   Ganti
@@ -441,6 +646,115 @@ export default function CheckoutPage() {
                 </span>
               </div>
             </div>
+
+            {showQris && (
+              <form
+                id="payment-details-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleSubmitPaymentDetails();
+                }}
+                className="space-y-4 rounded-xl border border-gray-200 p-4"
+              >
+                <div>
+                  <h3 className="font-semibold text-gray-900">
+                    Konfirmasi pembayaran
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Pilih sumber pembayaran dan lampirkan bukti pembayaran.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="payment-provider"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Bank atau e-wallet
+                  </label>
+                  <select
+                    id="payment-provider"
+                    required
+                    value={paymentProvider}
+                    onChange={(event) => setPaymentProvider(event.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                  >
+                    <option value="">Pilih bank atau e-wallet</option>
+                    {PAYMENT_PROVIDERS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.options.map((provider) => (
+                          <option key={`${group.label}-${provider}`} value={provider}>
+                            {provider}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="payment-sender-name"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Nama pengirim
+                  </label>
+                  <input
+                    id="payment-sender-name"
+                    type="text"
+                    required
+                    maxLength={100}
+                    value={senderName}
+                    onChange={(event) => setSenderName(event.target.value)}
+                    placeholder="Nama sesuai rekening atau e-wallet"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="payment-proof"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Bukti pembayaran
+                  </label>
+                  <input
+                    id="payment-proof"
+                    type="file"
+                    required
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleProofFileChange}
+                    className="block w-full rounded-lg border border-gray-300 bg-white text-sm text-gray-700 file:mr-3 file:border-0 file:bg-gray-100 file:px-3 file:py-2.5 file:font-medium"
+                  />
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    Format PNG, JPG, atau WebP. Ukuran maksimal 1 MB.
+                  </p>
+                  {isValidatingProof && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      Memvalidasi gambar...
+                    </p>
+                  )}
+                  {proofPreview && proofFile && (
+                    <div className="mt-3 flex items-center gap-3 rounded-lg bg-gray-50 p-2">
+                      <img
+                        src={proofPreview}
+                        alt="Pratinjau bukti pembayaran"
+                        className="h-16 w-16 rounded-md object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-800">
+                          {proofFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(proofFile.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </form>
+            )}
 
             {/* RINGKASAN PESANAN */}
             <div className="rounded-xl border border-gray-200">
@@ -488,11 +802,14 @@ export default function CheckoutPage() {
               {showSummary && (
                 <div className="border-t border-gray-200 px-4 py-3">
                   <div className="space-y-4">
-                    {cart.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3"
-                      >
+                    {cart.map((item) => {
+                      const pricing = getItemPricing(item);
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-3"
+                        >
                         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
                           {item.image ? (
                             <img
@@ -513,19 +830,29 @@ export default function CheckoutPage() {
                           </p>
 
                           <p className="mt-1 text-xs text-gray-500">
-                            {item.quantity || 1} ×{" "}
-                            {formatRupiah(item.price)}
+                            Diterima {pricing.quantity} · Bayar{" "}
+                            {pricing.paidQuantity}
+                            {pricing.bonusQuantity > 0 &&
+                              ` · Bonus gratis ${pricing.bonusQuantity}`}
                           </p>
+                          {pricing.promotionLabel && (
+                            <p className="mt-1 text-xs font-medium text-green-700">
+                              Promo {pricing.promotionLabel}
+                            </p>
+                          )}
                         </div>
 
-                        <p className="shrink-0 text-sm font-semibold">
-                          {formatRupiah(
-                            Number(item.price || 0) *
-                              Number(item.quantity || 1)
+                        <div className="shrink-0 text-right text-sm font-semibold">
+                          {pricing.discount > 0 && (
+                            <p className="text-xs text-gray-400 line-through">
+                              {formatRupiah(pricing.originalSubtotal)}
+                            </p>
                           )}
-                        </p>
-                      </div>
-                    ))}
+                          <p>{formatRupiah(pricing.subtotal)}</p>
+                        </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -564,15 +891,14 @@ export default function CheckoutPage() {
                 Pesanan berhasil dikonfirmasi!
             </div>
 
-            <Link
-                href="/pesanan/berhasil"
-                onClick={() => {
-                  localStorage.setItem("toko-cart", JSON.stringify([]));
-                }}
-                className="block w-full rounded-xl bg-red-600 px-5 py-4 text-center text-lg font-bold text-white transition hover:bg-red-700"
+            <button
+                type="submit"
+                form="payment-details-form"
+                disabled={isSavingPayment || isValidatingProof}
+                className="block w-full rounded-xl bg-red-600 px-5 py-4 text-center text-lg font-bold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
             >
-                Lanjut
-            </Link>
+                {isSavingPayment ? "Menyimpan..." : "Simpan Bukti & Lanjut"}
+            </button>
             </div>
         )}
         </section>

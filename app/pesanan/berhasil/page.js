@@ -3,11 +3,25 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
+import { adminWhatsAppUrl } from "@/lib/whatsapp";
+import { getCartSummary, getItemPricing } from "@/lib/promotions";
+import { useNotification } from "@/components/ui/NotificationProvider";
+
+function getTransactionQrPayload(transactionCode) {
+  const transactionUrl = new URL("/pesanan/berhasil", window.location.origin);
+  transactionUrl.searchParams.set("transactionCode", transactionCode);
+  return transactionUrl.toString();
+}
 
 export default function ReceiptPage() {
+  const { notify } = useNotification();
   const [order, setOrder] = useState(null);
+  const [paymentProofPreview, setPaymentProofPreview] = useState("");
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [qrImage, setQrImage] = useState("");
 
   const formatRupiah = (number) =>
     new Intl.NumberFormat("id-ID", {
@@ -17,23 +31,85 @@ export default function ReceiptPage() {
     }).format(number || 0);
 
   useEffect(() => {
+    let savedOrderData = null;
+    let savedProofPreview = "";
+
     try {
-      const savedOrder = localStorage.getItem("toko-current-order");
+      const transactionCode = new URLSearchParams(window.location.search).get(
+        "transactionCode"
+      );
+      const savedOrders = localStorage.getItem("toko-orders");
+      const orders = savedOrders ? JSON.parse(savedOrders) : [];
+      const currentOrder = JSON.parse(
+        localStorage.getItem("toko-current-order") || "null"
+      );
+      const savedOrder = transactionCode
+        ? orders.find((item) => item.transactionCode === transactionCode) ||
+          (currentOrder?.transactionCode === transactionCode
+            ? currentOrder
+            : null)
+        : currentOrder;
 
       if (savedOrder) {
-        setOrder(JSON.parse(savedOrder));
+        savedOrderData = savedOrder;
+        const proofKey = savedOrderData.paymentProof?.storageKey;
+        if (proofKey) {
+          savedProofPreview = localStorage.getItem(proofKey) || "";
+        }
       }
     } catch (error) {
       console.error("Gagal mengambil data transaksi:", error);
     }
+
+    const frame = requestAnimationFrame(() => {
+      setOrder(savedOrderData);
+      setPaymentProofPreview(savedProofPreview);
+      setIsLoaded(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
+  useEffect(() => {
+    if (!order?.transactionCode) return undefined;
+
+    let active = true;
+    QRCode.toDataURL(getTransactionQrPayload(order.transactionCode), {
+      errorCorrectionLevel: "H",
+      margin: 2,
+      width: 320,
+    })
+      .then((image) => {
+        if (active) setQrImage(image);
+      })
+      .catch((error) => {
+        console.error("Gagal membuat QR transaksi:", error);
+        notify("QR transaksi gagal dibuat.", { type: "error" });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [notify, order?.transactionCode]);
+
   const handleDownloadReceipt = async () => {
+    if (!isLoaded) {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+          <p className="text-gray-600">Memuat data transaksi...</p>
+        </main>
+      );
+    }
+
     if (!order) {
-      alert("Data transaksi tidak ditemukan.");
+      notify("Data transaksi tidak ditemukan.", { type: "error" });
       return;
     }
-  
+
+    const items = order.items || [];
+    const summary = getCartSummary(items);
+    const totalPrice = Number(order.totalPrice ?? summary.total);
+
     try {
       const doc = new jsPDF({
         unit: "mm",
@@ -151,6 +227,23 @@ export default function ReceiptPage() {
   
       doc.text(`WhatsApp: ${order.whatsapp || "-"}`, margin, y);
       y += 10;
+
+      if (order.paymentProvider) {
+        doc.text(`Bank / E-Wallet: ${order.paymentProvider}`, margin, y);
+        y += 7;
+      }
+
+      if (order.senderName) {
+        doc.text(`Nama Pengirim: ${order.senderName}`, margin, y);
+        y += 7;
+      }
+
+      doc.text(
+        "Bukti pembayaran tersimpan lokal, belum diverifikasi",
+        margin,
+        y
+      );
+      y += 10;
   
       doc.line(margin, y, pageWidth - margin, y);
   
@@ -178,12 +271,21 @@ export default function ReceiptPage() {
       // DAFTAR PRODUK
       doc.setFont("helvetica", "normal");
 
-      order.items.forEach((item) => {
+      items.forEach((item) => {
         const quantity = Number(item.quantity || 1);
-        const subtotal = Number(item.price || 0) * quantity;
+        const pricing = getItemPricing(item);
+        const productDescription = [
+          item.name || "Produk",
+          `Diterima ${quantity}, bayar ${pricing.paidQuantity}`,
+          pricing.bonusQuantity > 0
+            ? `Bonus gratis ${pricing.bonusQuantity}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
 
         const productName = doc.splitTextToSize(
-          item.name || "Produk",
+          productDescription,
           100
         );
   
@@ -196,7 +298,7 @@ export default function ReceiptPage() {
         doc.text(String(quantity), 135, y);
   
         doc.text(
-          rupiah(subtotal),
+          rupiah(pricing.subtotal),
           pageWidth - margin,
           y,
           { align: "right" }
@@ -211,14 +313,42 @@ export default function ReceiptPage() {
 
       y += 10;
 
-      // TOTAL
+      // PROMO DAN TOTAL
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
+
+      if (summary.discount > 0) {
+        doc.setFontSize(10);
+        doc.text("Subtotal normal", margin, y);
+        doc.text(
+          rupiah(summary.originalSubtotal),
+          pageWidth - margin,
+          y,
+          { align: "right" }
+        );
+        y += 7;
+
+        doc.setTextColor(0, 128, 0);
+        doc.text(
+          `Bonus promo: ${summary.bonusQuantity} produk gratis`,
+          margin,
+          y
+        );
+        doc.text(
+          `-${rupiah(summary.discount)}`,
+          pageWidth - margin,
+          y,
+          { align: "right" }
+        );
+        doc.setTextColor(0, 0, 0);
+        y += 8;
+        doc.setFontSize(12);
+      }
   
       doc.text("TOTAL PEMBAYARAN", margin, y);
   
       doc.text(
-        rupiah(order.totalPrice),
+        rupiah(totalPrice),
         pageWidth - margin,
         y,
         { align: "right" }
@@ -241,15 +371,10 @@ export default function ReceiptPage() {
       y += 12;
   
       // QR CODE TRANSAKSI
-      const qrData = JSON.stringify({
-        toko: "TOKO BAROKAH",
-        kodeTransaksi: order.transactionCode,
-        namaPembeli: order.name,
-        total: order.totalPrice,
-        tanggal: order.transactionDate,
-      });
-
-      const qrImage = await QRCode.toDataURL(qrData);
+      const receiptQrImage = await QRCode.toDataURL(
+        getTransactionQrPayload(order.transactionCode),
+        { errorCorrectionLevel: "H", margin: 2, width: 320 }
+      );
 
       if (y + 50 > 280) {
         doc.addPage();
@@ -268,7 +393,7 @@ export default function ReceiptPage() {
       y += 5;
   
       doc.addImage(
-        qrImage,
+        receiptQrImage,
         "PNG",
         pageWidth / 2 - 20,
         y,
@@ -294,7 +419,9 @@ export default function ReceiptPage() {
       );
     } catch (error) {
       console.error("Gagal membuat PDF:", error);
-      alert("Gagal membuat PDF. Silakan coba kembali.");
+      notify("Gagal membuat PDF. Silakan coba kembali.", {
+        type: "error",
+      });
     }
   };
  
@@ -318,6 +445,8 @@ export default function ReceiptPage() {
   }
 
   const items = order.items || [];
+  const summary = getCartSummary(items);
+  const totalPrice = Number(order.totalPrice ?? summary.total);
 
   const totalQuantity = items.reduce(
     (total, item) => total + Number(item.quantity || 1),
@@ -356,10 +485,12 @@ export default function ReceiptPage() {
             Rincian Pembelian
           </h1>
 
-          <Link
-            href="/bantuan"
+          <a
+            href={adminWhatsAppUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="rounded-lg p-2 text-gray-700 hover:bg-gray-100"
-            aria-label="Chat admin"
+            aria-label="Hubungi admin melalui WhatsApp"
           >
             <svg
               className="h-6 w-6"
@@ -379,7 +510,7 @@ export default function ReceiptPage() {
                 d="M8 12h.01M12 12h.01M16 12h.01"
               />
             </svg>
-          </Link>
+          </a>
         </div>
       </header>
 
@@ -409,18 +540,52 @@ export default function ReceiptPage() {
 
                 <div>
                   <h2 className="text-xl font-bold text-green-700 sm:text-2xl">
-                    Pembayaran Selesai
+                    Pesanan Dikonfirmasi
                   </h2>
 
-                  <p className="mt-1 text-gray-600">
-                    Terima kasih telah berbelanja!
-                  </p>
-
-                  <p className="mt-1 text-xs text-green-700">
-                    Status ini masih simulasi sementara.
-                  </p>
                 </div>
               </div>
+            </section>
+
+            {/* INFORMASI PEMBAYARAN */}
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+              <h2 className="text-lg font-bold">Informasi Pembayaran</h2>
+              <div className="mt-4 space-y-2 text-sm text-gray-600">
+                <p>
+                  <span className="font-medium text-gray-800">
+                    Bank / E-Wallet:
+                  </span>{" "}
+                  {order.paymentProvider || "-"}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-800">
+                    Nama Pengirim:
+                  </span>{" "}
+                  {order.senderName || "-"}
+                </p>
+              </div>
+              {paymentProofPreview && (
+                <div className="mt-4">
+                  <p className="mb-2 text-sm font-medium text-gray-800">
+                    Bukti pembayaran
+                  </p>
+                  <a
+                    href={paymentProofPreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block"
+                  >
+                    <img
+                      src={paymentProofPreview}
+                      alt="Bukti pembayaran yang disimpan"
+                      className="max-h-64 max-w-full rounded-lg border border-gray-200 object-contain"
+                    />
+                  </a>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {order.paymentProof?.fileName}
+                  </p>
+                </div>
+              )}
             </section>
 
             {/* RINCIAN PRODUK */}
@@ -432,7 +597,10 @@ export default function ReceiptPage() {
               </div>
 
               <div className="divide-y divide-gray-200 px-5 sm:px-6">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const pricing = getItemPricing(item);
+
+                  return (
                   <div
                     key={item.id}
                     className="flex items-center gap-3 py-5 sm:gap-4"
@@ -465,17 +633,25 @@ export default function ReceiptPage() {
                       <p className="text-gray-500">
                         × {item.quantity || 1}
                       </p>
+                      {pricing.bonusQuantity > 0 && (
+                        <p className="mt-1 text-sm font-medium text-green-700">
+                          Bonus gratis {pricing.bonusQuantity} produk
+                        </p>
+                      )}
                     </div>
 
                     {/* TOTAL PRODUK */}
-                    <p className="shrink-0 text-sm font-bold sm:text-base">
-                      {formatRupiah(
-                        Number(item.price || 0) *
-                          Number(item.quantity || 1)
+                    <div className="shrink-0 text-right text-sm font-bold sm:text-base">
+                      {pricing.discount > 0 && (
+                        <p className="text-xs text-gray-400 line-through">
+                          {formatRupiah(pricing.originalSubtotal)}
+                        </p>
                       )}
-                    </p>
+                      <p>{formatRupiah(pricing.subtotal)}</p>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -514,8 +690,12 @@ export default function ReceiptPage() {
             <div className="p-5 sm:p-6">
               {/* INFORMASI TOKO */}
               <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-red-100 text-3xl">
-                  🏪
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center text-3xl">
+                  <img
+                    src="/icons/Logo.png"
+                    alt="Logo Toko"
+                    className="h-full w-full object-cover"
+                  />
                 </div>
 
                 <div>
@@ -568,7 +748,10 @@ export default function ReceiptPage() {
 
               {/* ITEM STRUK */}
               <div className="space-y-4">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const pricing = getItemPricing(item);
+
+                  return (
                   <div key={item.id}>
                     <div className="flex justify-between gap-3">
                       <p className="font-medium">
@@ -576,22 +759,38 @@ export default function ReceiptPage() {
                       </p>
 
                       <p className="shrink-0 font-semibold">
-                        {formatRupiah(
-                          Number(item.price || 0) *
-                            Number(item.quantity || 1)
-                        )}
+                        {formatRupiah(pricing.subtotal)}
                       </p>
                     </div>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      {item.quantity || 1} × @
-                      {formatRupiah(item.price)}
+                      Diterima {pricing.quantity} · Bayar{" "}
+                      {pricing.paidQuantity}
                     </p>
+                    {pricing.promotionLabel && (
+                      <p className="mt-1 text-sm font-medium text-green-700">
+                        Promo {pricing.promotionLabel}
+                        {pricing.bonusQuantity > 0 &&
+                          ` · Bonus gratis ${pricing.bonusQuantity}`}
+                      </p>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <hr className="my-5 border-gray-200" />
+              {summary.discount > 0 && (
+                <div className="mt-3 space-y-2 border-t border-gray-200 pt-3 text-sm">
+                  <div className="flex justify-between gap-3 text-gray-500">
+                    <span>Subtotal normal</span>
+                    <span>{formatRupiah(summary.originalSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 font-medium text-green-700">
+                    <span>Bonus promo ({summary.bonusQuantity} produk)</span>
+                    <span>-{formatRupiah(summary.discount)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* SUBTOTAL */}
               <div className="flex items-center justify-between gap-3">
@@ -600,42 +799,35 @@ export default function ReceiptPage() {
                 </p>
 
                 <p className="text-xl font-bold text-red-600">
-                  {formatRupiah(order.totalPrice)}
+                  {formatRupiah(totalPrice)}
                 </p>
               </div>
+
 
               <hr className="my-5 border-dashed border-gray-300" />
 
               {/* QR PLACEHOLDER */}
               <div className="flex flex-col items-center py-2">
-                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50">
-                  <svg
-                    className="h-20 w-20 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM19 14h2M14 19h3M19 19h2"
+                <div className="flex h-52 w-52 items-center justify-center rounded-xl bg-white p-3">
+                  {qrImage ? (
+                    <Image
+                      src={qrImage}
+                      alt={`QR Code transaksi ${order.transactionCode}`}
+                      width={208}
+                      height={208}
+                      unoptimized
+                      className="h-full w-full object-contain"
                     />
-                  </svg>
-
-                  <p className="mt-2 text-xs text-gray-400">
-                    QR Placeholder
-                  </p>
+                  ) : (
+                    <span className="text-sm text-gray-500">
+                      Membuat QR transaksi...
+                    </span>
+                  )}
                 </div>
 
                 <p className="mt-3 text-sm text-gray-500">
-                  QR Kode
+                  QR Code Transaksi
                 </p>
-              </div>
-
-              <div className="mt-5 rounded-lg bg-gray-50 p-3 text-center text-xs text-gray-500">
-                Bukti transaksi sementara. Pembayaran belum
-                diverifikasi oleh payment gateway.
               </div>
             </div>
           </section>

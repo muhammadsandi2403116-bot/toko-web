@@ -4,6 +4,7 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+
 import Breadcrumb from "@/components/store/Breadcrumb";
 import ProductSidebar from "@/components/store/ProductSidebar";
 import ProductToolbar from "@/components/store/ProductToolbar";
@@ -11,13 +12,21 @@ import ProductGrid from "@/components/store/ProductGrid";
 
 import { products } from "@/data/products";
 
+const normalizeName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
 export default function ProductPageClient() {
   const searchParams = useSearchParams();
 
   const categoryFromUrl = searchParams.get("category");
   const searchQuery = searchParams.get("q") || "";
+
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedCategoryParent, setSelectedCategoryParent] = useState("");
+  const [selectedCategoryParent, setSelectedCategoryParent] =
+    useState("");
 
   const [draftMinPrice, setDraftMinPrice] = useState("");
   const [draftMaxPrice, setDraftMaxPrice] = useState("");
@@ -27,27 +36,43 @@ export default function ProductPageClient() {
 
   const [sortBy, setSortBy] = useState("popular");
 
+  // MEMBUAT DAFTAR KATEGORI DARI DATA PRODUK
   const availableCategories = useMemo(() => {
     const categoryMap = new Map();
 
     for (const product of products) {
-      if (!product.category) {
-        continue;
+      const categoryName = String(product.category || "")
+        .trim()
+        .replace(/\s+/g, " ");
+      const categoryKey = normalizeName(categoryName);
+
+      if (!categoryKey) continue;
+
+      if (!categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, {
+          name: categoryName,
+          children: new Map(),
+        });
       }
 
-      const category = categoryMap.get(product.category) || new Set();
-      if (product.subcategory) {
-        category.add(product.subcategory);
+      const category = categoryMap.get(categoryKey);
+      const subcategoryName = String(product.subcategory || "")
+        .trim()
+        .replace(/\s+/g, " ");
+      const subcategoryKey = normalizeName(subcategoryName);
+
+      if (subcategoryKey && !category.children.has(subcategoryKey)) {
+        category.children.set(subcategoryKey, subcategoryName);
       }
-      categoryMap.set(product.category, category);
     }
 
-    return Array.from(categoryMap, ([name, children]) => ({
+    return Array.from(categoryMap.values(), ({ name, children }) => ({
       name,
-      children: Array.from(children),
+      children: Array.from(children.values()),
     }));
   }, []);
 
+  // MEMBACA KATEGORI DARI URL
   useEffect(() => {
     startTransition(() => {
       setSelectedCategory(categoryFromUrl || "");
@@ -55,86 +80,114 @@ export default function ProductPageClient() {
     });
   }, [categoryFromUrl]);
 
+  // MEMILIH KATEGORI ATAU SUBKATEGORI
   const handleCategoryChange = (category, parent = "") => {
     setSelectedCategory(category);
     setSelectedCategoryParent(parent);
   };
 
+  // MENERAPKAN FILTER HARGA
   const handleApplyPrice = () => {
     setAppliedMinPrice(draftMinPrice);
     setAppliedMaxPrice(draftMaxPrice);
   };
 
+  // FILTER DAN SORTING PRODUK
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Filter berdasarkan kata kunci pencarian
+    // PENCARIAN
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     if (normalizedQuery) {
-        result = result.filter((product) => {
+      result = result.filter((product) => {
         const searchableText = [
-            product.name,
-            product.category,
-            product.subcategory,
+          product.name,
+          product.category,
+          product.subcategory,
         ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
         return searchableText.includes(normalizedQuery);
-        });
-    }
-
-    if (selectedCategory) {
-      const normalizedCategory = selectedCategory.trim().toLowerCase();
-
-      result = result.filter((product) => {
-        const category = (product.category || "").trim().toLowerCase();
-        const subcategory = (product.subcategory || "").trim().toLowerCase();
-
-        return (
-          category === normalizedCategory ||
-          subcategory === normalizedCategory
-        );
       });
     }
 
+    // FILTER KATEGORI DAN SUBKATEGORI
+    if (selectedCategory) {
+      const normalizedCategory = normalizeName(selectedCategory);
+      const normalizedParent = normalizeName(selectedCategoryParent);
+
+      result = result.filter((product) => {
+        const category = normalizeName(product.category);
+        const subcategory = normalizeName(product.subcategory);
+
+        if (normalizedParent) {
+          return (
+            category === normalizedParent &&
+            subcategory === normalizedCategory
+          );
+        }
+
+        const isCategory = availableCategories.some(
+          (item) => normalizeName(item.name) === normalizedCategory
+        );
+
+        return isCategory
+          ? category === normalizedCategory
+          : subcategory === normalizedCategory;
+      });
+    }
+
+    // FILTER HARGA MINIMUM
     if (appliedMinPrice !== "") {
       result = result.filter(
-        (product) => Number(product.price) >= Number(appliedMinPrice)
+        (product) =>
+          Number(product.price) >= Number(appliedMinPrice)
       );
     }
 
+    // FILTER HARGA MAKSIMUM
     if (appliedMaxPrice !== "") {
       result = result.filter(
-        (product) => Number(product.price) <= Number(appliedMaxPrice)
+        (product) =>
+          Number(product.price) <= Number(appliedMaxPrice)
       );
     }
 
+    // SORTING
     switch (sortBy) {
       case "price-asc":
         result.sort((a, b) => a.price - b.price);
         break;
+
       case "price-desc":
         result.sort((a, b) => b.price - a.price);
         break;
+
       case "newest":
         result.sort(
           (a, b) =>
-            new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+            new Date(b.createdAt || 0) -
+            new Date(a.createdAt || 0)
         );
         break;
+
       case "bestseller":
         result.sort(
-          (a, b) => Number(b.sales || 0) - Number(a.sales || 0)
+          (a, b) =>
+            Number(b.sales || 0) -
+            Number(a.sales || 0)
         );
         break;
+
       case "popular":
       default:
         result.sort(
           (a, b) =>
-            Number(b.popularity || 0) - Number(a.popularity || 0)
+            Number(b.popularity || 0) -
+            Number(a.popularity || 0)
         );
         break;
     }
@@ -143,11 +196,31 @@ export default function ProductPageClient() {
   }, [
     searchQuery,
     selectedCategory,
+    selectedCategoryParent,
+    availableCategories,
     appliedMinPrice,
     appliedMaxPrice,
     sortBy,
   ]);
 
+  const hasProductsInSelectedCategory =
+    !selectedCategory ||
+    products.some((product) => {
+      const category = normalizeName(product.category);
+      const subcategory = normalizeName(product.subcategory);
+      const selected = normalizeName(selectedCategory);
+      const parent = normalizeName(selectedCategoryParent);
+
+      return parent
+        ? category === parent && subcategory === selected
+        : availableCategories.some(
+            (item) => normalizeName(item.name) === selected
+          )
+          ? category === selected
+          : subcategory === selected;
+    });
+
+  // BREADCRUMB
   const breadcrumbItems = [
     { label: "Beranda", href: "/" },
     ...(selectedCategoryParent
@@ -165,15 +238,19 @@ export default function ProductPageClient() {
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+
         <div className="mb-6">
           <Breadcrumb items={breadcrumbItems} />
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+
+          {/* SIDEBAR */}
           <aside>
             <ProductSidebar
               categories={availableCategories}
               selectedCategory={selectedCategory}
+              selectedCategoryParent={selectedCategoryParent}
               onCategoryChange={handleCategoryChange}
               minPrice={draftMinPrice}
               maxPrice={draftMaxPrice}
@@ -183,7 +260,9 @@ export default function ProductPageClient() {
             />
           </aside>
 
+          {/* KATALOG PRODUK */}
           <section className="min-w-0">
+
             <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4">
               <ProductToolbar
                 onSortChange={setSortBy}
@@ -202,24 +281,27 @@ export default function ProductPageClient() {
                 {filteredProducts.length} produk
               </p>
             </div>
+
             {filteredProducts.length > 0 ? (
               <ProductGrid products={filteredProducts} />
             ) : (
-            <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
+              <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
                 <div className="mb-4 text-5xl">🔎</div>
 
                 <h2 className="text-lg font-semibold text-gray-800">
-                {products.length === 0
-                  ? "Produk belum tersedia"
-                  : "Produk tidak ditemukan"}
+                  {products.length === 0 || !hasProductsInSelectedCategory
+                    ? "Produk belum tersedia"
+                    : "Produk tidak ditemukan"}
                 </h2>
 
                 <p className="mt-2 text-sm text-gray-500">
-                {products.length === 0
-                  ? "Katalog akan ditampilkan setelah data produk tersedia."
-                  : `Maaf, kami tidak menemukan produk${
-                      searchQuery ? ` dengan kata kunci "${searchQuery}"` : ""
-                    }. Coba gunakan kata kunci lainnya.`}
+                  {products.length === 0 || !hasProductsInSelectedCategory
+                    ? "Katalog akan ditampilkan setelah data produk tersedia."
+                    : `Maaf, kami tidak menemukan produk${
+                        searchQuery
+                          ? ` dengan kata kunci "${searchQuery}"`
+                          : ""
+                      }. Coba gunakan kata kunci lainnya.`}
                 </p>
 
                 {products.length > 0 && (
@@ -230,8 +312,9 @@ export default function ProductPageClient() {
                     Lihat Semua Produk
                   </Link>
                 )}
-            </div>
+              </div>
             )}
+
           </section>
         </div>
       </div>

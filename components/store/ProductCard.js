@@ -1,9 +1,14 @@
 import Link from "next/link";
+import {
+  BUY_THREE_PAY_TWO_PRODUCT_ID,
+  BUY_THREE_PAY_TWO_LABEL,
+} from "@/lib/promotions";
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, ...props }) {
   return (
     <Link
       href={`/produk/${product.id}`}
+      {...props}
       className="group block overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:border-red-300 hover:shadow-md"
     >
       {/* GAMBAR PRODUK */}
@@ -23,6 +28,12 @@ export default function ProductCard({ product }) {
 
       {/* INFORMASI PRODUK */}
       <div className="space-y-2 p-3">
+        {String(product.id) === String(BUY_THREE_PAY_TWO_PRODUCT_ID) && (
+          <span className="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+            Promo {BUY_THREE_PAY_TWO_LABEL}
+          </span>
+        )}
+
         <h3 className="line-clamp-2 min-h-10 text-sm font-medium text-gray-900 transition group-hover:text-red-600">
           {product.name}
         </h3>

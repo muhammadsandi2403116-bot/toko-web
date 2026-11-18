@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { adminWhatsAppUrl } from "@/lib/whatsapp";
 
 export default function Footer() {
     const [year, setYear] = useState("");
@@ -14,7 +15,7 @@ export default function Footer() {
     }, []);
 
     return (
-    <footer className="mt-16 border-t border-neutral-200 bg-neutral-50">
+    <footer data-home-global-reveal className="mt-16 border-t border-neutral-200 bg-neutral-50">
       <div className="mx-auto grid max-w-screen-2xl grid-cols-2 gap-8 px-4 py-10 sm:px-6 md:grid-cols-3 lg:grid-cols-5 lg:px-8">
 
         <div>
@@ -76,9 +77,14 @@ export default function Footer() {
           <h3 className="mb-4 text-sm font-bold text-neutral-800">
             Hubungi Kami
           </h3>
-          <p className="text-sm text-neutral-600">
-            WhatsApp
-          </p>
+          <a
+            href={adminWhatsAppUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-neutral-600 hover:text-green-700"
+          >
+            WhatsApp: +62 896-8155-8303
+          </a>
           <p className="mt-2 text-sm text-neutral-600">
             Informasi kontak toko
           </p>

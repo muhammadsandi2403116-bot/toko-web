@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getCartSummary, getItemPricing } from "@/lib/promotions";
 
 export default function KeranjangPage() {
   const [cart, setCart] = useState([]);
@@ -17,17 +18,22 @@ export default function KeranjangPage() {
 
   // Membaca keranjang dari localStorage saat halaman dibuka
   useEffect(() => {
+    let parsedCart = [];
+
     try {
       const savedCart = localStorage.getItem("toko-cart");
-      const parsedCart = savedCart ? JSON.parse(savedCart) : [];
-
-      setCart(Array.isArray(parsedCart) ? parsedCart : []);
+      const savedItems = savedCart ? JSON.parse(savedCart) : [];
+      parsedCart = Array.isArray(savedItems) ? savedItems : [];
     } catch (error) {
       console.error("Gagal membaca keranjang:", error);
-      setCart([]);
     }
 
-    setIsLoaded(true);
+    const frame = requestAnimationFrame(() => {
+      setCart(parsedCart);
+      setIsLoaded(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // Simpan keranjang dan perbarui state
@@ -58,11 +64,8 @@ export default function KeranjangPage() {
     saveCart(updatedCart);
   };
 
-  const subtotal = cart.reduce(
-    (total, item) =>
-      total + Number(item.price) * Number(item.quantity),
-    0
-  );
+  const cartSummary = getCartSummary(cart);
+  const subtotal = cartSummary.total;
 
   if (!isLoaded) {
     return (
@@ -104,11 +107,14 @@ export default function KeranjangPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Daftar produk */}
             <div className="space-y-4 lg:col-span-2">
-              {cart.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center"
-                >
+              {cart.map((item) => {
+                const pricing = getItemPricing(item);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center"
+                  >
                   {/* Gambar produk */}
                   <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
                     {item.image ? (
@@ -133,6 +139,19 @@ export default function KeranjangPage() {
                     <p className="mt-1 font-semibold text-red-600">
                       {formatRupiah(item.price)}
                     </p>
+
+                    {pricing.promotionLabel && (
+                      <p className="mt-1 text-sm font-medium text-green-700">
+                        Promo {pricing.promotionLabel}
+                      </p>
+                    )}
+                    {pricing.bonusQuantity > 0 && (
+                      <p className="mt-1 text-sm text-green-700">
+                        Diterima {pricing.quantity}: bayar{" "}
+                        {pricing.paidQuantity}, bonus gratis{" "}
+                        {pricing.bonusQuantity}
+                      </p>
+                    )}
 
                     <button
                       type="button"
@@ -173,14 +192,18 @@ export default function KeranjangPage() {
                       Total
                     </p>
 
+                    {pricing.discount > 0 && (
+                      <p className="text-xs text-gray-400 line-through">
+                        {formatRupiah(pricing.originalSubtotal)}
+                      </p>
+                    )}
                     <p className="font-bold text-gray-900">
-                      {formatRupiah(
-                        Number(item.price) * Number(item.quantity)
-                      )}
+                      {formatRupiah(pricing.subtotal)}
                     </p>
                   </div>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
 
               <Link
                 href="/produk"
@@ -200,18 +223,29 @@ export default function KeranjangPage() {
                 <span>Total produk</span>
 
                 <span>
-                  {cart.reduce(
-                    (total, item) => total + Number(item.quantity),
-                    0
-                  )}{" "}
+                  {cartSummary.quantity}{" "}
                   item
                 </span>
               </div>
 
+              {cartSummary.bonusQuantity > 0 && (
+                <div className="mt-3 flex justify-between text-sm text-green-700">
+                  <span>Bonus produk gratis</span>
+                  <span>{cartSummary.bonusQuantity} item</span>
+                </div>
+              )}
+
               <div className="mt-3 flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
-                <span>{formatRupiah(subtotal)}</span>
+                <span>Subtotal normal</span>
+                <span>{formatRupiah(cartSummary.originalSubtotal)}</span>
               </div>
+
+              {cartSummary.discount > 0 && (
+                <div className="mt-2 flex justify-between text-sm text-green-700">
+                  <span>Diskon promo</span>
+                  <span>-{formatRupiah(cartSummary.discount)}</span>
+                </div>
+              )}
 
               <div className="my-4 border-t border-gray-200" />
 

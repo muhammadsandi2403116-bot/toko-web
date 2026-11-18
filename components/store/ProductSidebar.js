@@ -1,10 +1,18 @@
+
 "use client";
 
 import { useState } from "react";
 
+const normalizeName = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
 export default function ProductSidebar({
   categories = [],
   selectedCategory = "",
+  selectedCategoryParent = "",
   onCategoryChange,
   minPrice = "",
   maxPrice = "",
@@ -19,11 +27,13 @@ export default function ProductSidebar({
       current === categoryName ? "" : categoryName
     );
 
-    onCategoryChange?.(categoryName);
+    // Memilih kategori utama
+    onCategoryChange?.(categoryName, "");
   };
 
-  const handleSubcategoryClick = (subcategory) => {
-    onCategoryChange?.(subcategory);
+  const handleSubcategoryClick = (subcategory, parentCategory) => {
+    // Memilih subkategori beserta kategori induknya
+    onCategoryChange?.(subcategory, parentCategory);
   };
 
   return (
@@ -37,14 +47,22 @@ export default function ProductSidebar({
 
           <div className="space-y-2">
             {categories.map((category) => {
-              const isExpanded = expandedCategory === category.name;
-              const isSelected = selectedCategory === category.name;
+              const isExpanded =
+                normalizeName(expandedCategory) ===
+                normalizeName(category.name);
+
+              const isSelected =
+                !selectedCategoryParent &&
+                normalizeName(selectedCategory) ===
+                  normalizeName(category.name);
 
               return (
                 <div key={category.name}>
                   <button
                     type="button"
-                    onClick={() => handleCategoryClick(category.name)}
+                    onClick={() =>
+                      handleCategoryClick(category.name)
+                    }
                     className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left transition ${
                       isSelected
                         ? "border-red-600 text-red-600"
@@ -55,21 +73,30 @@ export default function ProductSidebar({
                       <span className="text-sm">
                         {isExpanded ? "⌄" : "›"}
                       </span>
+
                       <span className="text-sm font-medium">
                         {category.name}
                       </span>
                     </span>
                   </button>
 
-                  {isExpanded && (
+                  {isExpanded && category.children.length > 0 && (
                     <div className="ml-5 mt-1 space-y-1">
                       {category.children.map((subcategory) => (
                         <button
                           key={subcategory}
                           type="button"
-                          onClick={() => handleSubcategoryClick(subcategory)}
+                          onClick={() =>
+                            handleSubcategoryClick(
+                              subcategory,
+                              category.name
+                            )
+                          }
                           className={`block w-full rounded-md px-3 py-2 text-left text-sm transition ${
-                            selectedCategory === subcategory
+                            normalizeName(selectedCategoryParent) ===
+                              normalizeName(category.name) &&
+                            normalizeName(selectedCategory) ===
+                              normalizeName(subcategory)
                               ? "bg-red-50 font-medium text-red-600"
                               : "text-gray-600 hover:bg-gray-50 hover:text-red-600"
                           }`}
@@ -118,7 +145,7 @@ export default function ProductSidebar({
               className="w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-red-500"
             />
           </div>
-          
+
           <button
             type="button"
             onClick={onApplyPrice}

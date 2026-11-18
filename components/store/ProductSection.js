@@ -4,7 +4,7 @@ import ProductCard from "@/components/store/ProductCard";
 
 export default function ProductSection({ title, data }) {
   return (
-    <section>
+    <section data-home-reveal>
       {/* JUDUL DAN LINK */}
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-neutral-800 sm:text-xl">
@@ -25,6 +25,7 @@ export default function ProductSection({ title, data }) {
           <ProductCard
             key={product.id}
             product={product}
+            data-home-stagger
           />
         ))}
       </div>

@@ -5,10 +5,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { categories as productCategories } from "@/data/categories";
+import { adminWhatsAppUrl } from "@/lib/whatsapp";
 
 const topMenus = [
   { label: "Keranjang", icon: "cart", href: "/keranjang" },
-  { label: "Chat Admin", icon: "chat", action: "open-chat" },
+  { label: "WhatsApp", icon: "chat", href: adminWhatsAppUrl },
   { label: "Notifikasi", icon: "bell", href: "/profil/notifikasi" },
   { label: "Kunjungan", icon: "history", href: "/profil/riwayat" },
 ];
@@ -93,17 +94,15 @@ export default function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white text-neutral-800 shadow-sm">
+    <header data-home-global-reveal className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white text-neutral-800 shadow-sm">
       {/* BARIS ATAS */}
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-2 gap-y-3 px-3 py-3 sm:gap-x-4 sm:px-5 lg:flex-nowrap lg:gap-5 lg:px-8">
         {/* LOGO */}
         <Link
           href="/"
-          aria-label="Beranda toko"
-          className="order-1 flex h-12 w-[76px] shrink-0 flex-col items-center justify-center rounded-xl border border-neutral-300 text-sm font-semibold leading-tight transition hover:bg-neutral-50 sm:h-14 sm:w-[88px] sm:text-base"
+          className="order-1 flex h-12 w-[76px] shrink-0 flex-col items-center justify-center text-sm font-semibold leading-tight transition hover:bg-neutral-50 sm:h-14 sm:w-[88px] sm:text-base"
         >
-          <span>Logo</span>
-          <span>Toko</span>
+          <img src="/icons/Logo.png" alt="Logo Toko" className="h-full w-full object-contain" />
         </Link>
 
         {/* PENCARIAN */}
@@ -283,31 +282,28 @@ export default function Navbar() {
               </>
             );
 
-            // Chat Admin membuka popup
-            if (menu.action === "open-chat") {
-              return (
-                <button
+            const isExternal = menu.href.startsWith("https://");
+
+            return (
+              isExternal ? (
+                <a
                   key={menu.label}
-                  type="button"
-                  onClick={() => {
-                    window.dispatchEvent(new Event("open-chat-widget"));
-                  }}
+                  href={menu.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={menuClassName}
                 >
                   {menuContent}
-                </button>
-              );
-            }
-
-            // Menu lainnya tetap menggunakan Link
-            return (
-              <Link
-                key={menu.label}
-                href={menu.href}
-                className={menuClassName}
-              >
-                {menuContent}
-              </Link>
+                </a>
+              ) : (
+                <Link
+                  key={menu.label}
+                  href={menu.href}
+                  className={menuClassName}
+                >
+                  {menuContent}
+                </Link>
+              )
             );
           })}
         </nav>

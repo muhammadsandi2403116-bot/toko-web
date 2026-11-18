@@ -2,6 +2,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  BUY_THREE_PAY_TWO_PRODUCT_ID,
+  BUY_THREE_PAY_TWO_LABEL,
+  getItemPricing,
+} from "@/lib/promotions";
 
 export default function ProductDetail({ product }) {
   const [quantity, setQuantity] = useState(1);
@@ -23,6 +28,13 @@ export default function ProductDetail({ product }) {
     return () => clearTimeout(timer);
   }, [message.id]);
   const formattedPrice = `Rp${Number(product.price).toLocaleString("id-ID")}`;
+  const pricing = getItemPricing({
+    id: product.id,
+    price: product.price,
+    quantity,
+  });
+  const hasPromotion =
+    String(product.id) === String(BUY_THREE_PAY_TWO_PRODUCT_ID);
 
   const handleAddToCart = () => {
     try {
@@ -107,6 +119,16 @@ export default function ProductDetail({ product }) {
           {formattedPrice}
         </p>
 
+        {hasPromotion && (
+          <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            <p className="font-semibold">{BUY_THREE_PAY_TWO_LABEL}</p>
+            <p className="mt-1">
+              Promo berlaku kelipatan. Tambahkan 3 produk untuk mendapat 1
+              gratis.
+            </p>
+          </div>
+        )}
+
         <div className="my-6 border-t border-gray-200" />
 
         <h2 className="mb-2 font-semibold text-gray-900">
@@ -154,14 +176,30 @@ export default function ProductDetail({ product }) {
         </div>
 
         {/* Total Harga */}
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 space-y-2">
+          {pricing.bonusQuantity > 0 && (
+            <p className="text-sm font-medium text-green-700">
+              Bonus promo: {pricing.bonusQuantity} produk gratis (total
+              diterima {quantity} produk)
+            </p>
+          )}
+
+          <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">
             Total harga
           </span>
 
-          <span className="text-lg font-semibold text-gray-900">
-            Rp{(Number(product.price) * quantity).toLocaleString("id-ID")}
-          </span>
+          <div className="text-right">
+            {pricing.discount > 0 && (
+              <p className="text-sm text-gray-400 line-through">
+                Rp{pricing.originalSubtotal.toLocaleString("id-ID")}
+              </p>
+            )}
+            <span className="text-lg font-semibold text-gray-900">
+              Rp{pricing.subtotal.toLocaleString("id-ID")}
+            </span>
+          </div>
+          </div>
         </div>
 
         {/* Tombol Keranjang */}
