@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { adminWhatsAppUrl } from "@/lib/whatsapp";
+
+const customerLinks = [
+  { label: "Bantuan", slug: "bantuan" },
+  { label: "Pertanyaan Umum", slug: "pertanyaan-umum" },
+  { label: "Cara Belanja", slug: "cara-belanja" },
+  { label: "TB-Point", slug: "tb-point" },
+];
+
+const storeLinks = [
+  { label: "Tentang Toko Barokah", slug: "tentang-toko-barokah" },
+  { label: "Syarat & Ketentuan", slug: "syarat-ketentuan" },
+  { label: "Kebijakan Privasi", slug: "kebijakan-privasi" },
+];
 
 export default function Footer() {
     const [year, setYear] = useState("");
@@ -23,10 +37,16 @@ export default function Footer() {
             Layanan Pelanggan
           </h3>
           <ul className="space-y-2 text-sm text-neutral-600">
-            <li>Bantuan</li>
-            <li>Pertanyaan Umum</li>
-            <li>Cara Belanja</li>
-            <li>TB-Point</li>
+            {customerLinks.map(({ label, slug }) => (
+              <li key={slug}>
+                <Link
+                  href={`/informasi/${slug}`}
+                  className="transition-colors hover:text-green-700"
+                >
+                  {label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -35,9 +55,16 @@ export default function Footer() {
             Jelajahi Toko Barokah
           </h3>
           <ul className="space-y-2 text-sm text-neutral-600">
-            <li>Tentang Toko Barokah</li>
-            <li>Syarat & Ketentuan</li>
-            <li>Kebijakan Privasi</li>
+            {storeLinks.map(({ label, slug }) => (
+              <li key={slug}>
+                <Link
+                  href={`/informasi/${slug}`}
+                  className="transition-colors hover:text-green-700"
+                >
+                  {label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
