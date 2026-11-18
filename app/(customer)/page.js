@@ -5,6 +5,16 @@ import HomePageAnimations from "@/components/store/HomePageAnimations";
 
 import { products } from "@/data/products";
 
+const mostPopularProducts = [...products].sort(
+  (a, b) => b.popularity - a.popularity
+);
+const newestProducts = [...products].sort(
+  (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+);
+const bestSellingProducts = [...products].sort(
+  (a, b) => b.sales - a.sales
+);
+
 export default function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-screen-2xl flex-col gap-10 px-4 py-8 sm:gap-12 sm:px-6 lg:px-8">
@@ -14,12 +24,21 @@ export default function HomePage() {
 
         {products.length > 0 ? (
           <>
-            <ProductSection title="Produk Terpopuler" data={products} />
+            <ProductSection
+              title="Produk Terpopuler"
+              data={mostPopularProducts}
+              sortBy="popular"
+            />
             <ProductSection
               title="Produk Terbaru"
-              data={[...products].reverse()}
+              data={newestProducts}
+              sortBy="newest"
             />
-            <ProductSection title="Produk Terlaris" data={products} />
+            <ProductSection
+              title="Produk Terlaris"
+              data={bestSellingProducts}
+              sortBy="bestseller"
+            />
           </>
         ) : (
           <section

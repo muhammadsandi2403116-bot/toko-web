@@ -19,6 +19,7 @@ export default function ProductSidebar({
   onMinPriceChange,
   onMaxPriceChange,
   onApplyPrice,
+  onResetPrice,
 }) {
   const [expandedCategory, setExpandedCategory] = useState("");
 
@@ -146,13 +147,22 @@ export default function ProductSidebar({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={onApplyPrice}
-            className="w-full rounded-md bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700"
-          >
-            Terapkan
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onApplyPrice}
+              className="rounded-md bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700"
+            >
+              Terapkan
+            </button>
+            <button
+              type="button"
+              onClick={onResetPrice}
+              className="rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:border-red-500 hover:text-red-600"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </section>
     </aside>

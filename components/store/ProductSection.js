@@ -1,27 +1,39 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 import ProductCard from "@/components/store/ProductCard";
 
-export default function ProductSection({ title, data }) {
+const INITIAL_PRODUCT_COUNT = 4;
+
+export default function ProductSection({
+  title,
+  data,
+  sortBy = "popular",
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const visibleProducts = showAll
+    ? data
+    : data.slice(0, INITIAL_PRODUCT_COUNT);
+
   return (
     <section data-home-reveal>
-      {/* JUDUL DAN LINK */}
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-neutral-800 sm:text-xl">
           {title}
         </h2>
 
         <Link
-          href="/produk"
+          href={`/produk?sort=${sortBy}`}
           className="text-xs font-medium text-neutral-500 transition hover:text-neutral-900 sm:text-sm"
         >
           Lihat semua →
         </Link>
       </div>
 
-      {/* DAFTAR PRODUK */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
-        {data.map((product) => (
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {visibleProducts.map((product) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -29,6 +41,19 @@ export default function ProductSection({ title, data }) {
           />
         ))}
       </div>
+
+      {data.length > INITIAL_PRODUCT_COUNT && (
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => setShowAll((current) => !current)}
+            aria-expanded={showAll}
+            className="rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-medium text-neutral-700 transition hover:border-green-700 hover:text-green-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
+          >
+            {showAll ? "Tampilkan lebih sedikit" : "Tampilkan lebih banyak"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

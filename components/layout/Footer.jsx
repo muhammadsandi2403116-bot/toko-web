@@ -30,9 +30,8 @@ export default function Footer() {
 
     return (
     <footer data-home-global-reveal className="mt-16 border-t border-neutral-200 bg-neutral-50">
-      <div className="mx-auto grid max-w-screen-2xl grid-cols-2 gap-8 px-4 py-10 sm:px-6 md:grid-cols-3 lg:grid-cols-5 lg:px-8">
-
-        <div>
+      <div className="mx-auto grid max-w-screen-2xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
+        <div className="min-w-0">
           <h3 className="mb-4 text-sm font-bold text-neutral-800">
             Layanan Pelanggan
           </h3>
@@ -50,7 +49,7 @@ export default function Footer() {
           </ul>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <h3 className="mb-4 text-sm font-bold text-neutral-800">
             Jelajahi Toko Barokah
           </h3>
@@ -68,39 +67,82 @@ export default function Footer() {
           </ul>
         </div>
 
-        <div>
-          <h3 className="mb-4 text-sm font-bold text-neutral-800">
-            Layanan Pengiriman
-          </h3>
-          <div className="flex flex-wrap gap-2 text-xs text-neutral-600">
-            {["JNE", "J&T", "SiCepat", "POS", "Anteraja", "ID Express"].map(
-              (service) => (
-                <span
-                  key={service}
-                  className="rounded border border-neutral-300 bg-white px-2 py-1"
-                >
-                  {service}
-                </span>
-              )
-            )}
-          </div>
-        </div>
-
-        <div>
+        <div className="min-w-0">
           <h3 className="mb-4 text-sm font-bold text-neutral-800">
             Ikuti Kami
           </h3>
-          <div className="flex gap-2 text-sm text-neutral-600">
-            <span className="rounded border border-neutral-300 bg-white px-3 py-2">
-              IG
-            </span>
-            <span className="rounded border border-neutral-300 bg-white px-3 py-2">
+          <div className="flex items-center gap-3">
+            <a
+              href="https://www.instagram.com/um.menfess"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram Toko Barokah"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition-colors hover:border-pink-300 hover:text-pink-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+              >
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" />
+              </svg>
+            </a>
+            <p className="space-y-2 text-sm text-neutral-600">
+            Instagram
+            </p>
+            <a
+              href="https://www.tiktok.com/@universitasnegerimalang"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="TikTok Toko Barokah"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 transition-colors hover:border-neutral-500 hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-700"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="h-5 w-5"
+              >
+                <path
+                  d="M14 4v11.2a3.5 3.5 0 1 1-3.5-3.5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14 4c.5 2.6 2 4.1 4.5 4.5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+            <p className="space-y-2 text-sm text-neutral-600">
               TikTok
-            </span>
+            </p>
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <h3 className="mb-4 text-sm font-bold text-neutral-800">
             Hubungi Kami
           </h3>

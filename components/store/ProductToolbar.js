@@ -10,17 +10,15 @@ const sortOptions = [
 
 export default function ProductToolbar({
   onSortChange,
-  initialSort = "popular",
+  sortBy = "popular",
 }) {
-  const [activeSort, setActiveSort] = useState(initialSort);
   const [isPriceOpen, setIsPriceOpen] = useState(false);
 
   const isPriceActive =
-    activeSort === "price-asc" ||
-    activeSort === "price-desc";
+    sortBy === "price-asc" ||
+    sortBy === "price-desc";
 
   const handleSort = (sortValue) => {
-    setActiveSort(sortValue);
     setIsPriceOpen(false);
 
     onSortChange?.(sortValue);
@@ -48,7 +46,7 @@ export default function ProductToolbar({
           type="button"
           onClick={() => handleSort(option.value)}
           className={getButtonClass(
-            activeSort === option.value
+            sortBy === option.value
           )}
         >
           {option.label}
@@ -76,7 +74,7 @@ export default function ProductToolbar({
               type="button"
               onClick={() => handleSort("price-asc")}
               className={`block w-full px-4 py-3 text-left text-sm transition ${
-                activeSort === "price-asc"
+                sortBy === "price-asc"
                   ? "bg-red-50 font-medium text-red-600"
                   : "text-gray-700 hover:bg-gray-50"
               }`}
@@ -88,7 +86,7 @@ export default function ProductToolbar({
               type="button"
               onClick={() => handleSort("price-desc")}
               className={`block w-full px-4 py-3 text-left text-sm transition ${
-                activeSort === "price-desc"
+                sortBy === "price-desc"
                   ? "bg-red-50 font-medium text-red-600"
                   : "text-gray-700 hover:bg-gray-50"
               }`}

@@ -1,5 +1,5 @@
 
-export const products = [
+const productCatalog = [
   // =========================
   // SEMBAKO - BERAS
   // =========================
@@ -277,7 +277,7 @@ export const products = [
     image: "/products/Pulpen_Snowman_V5_Hitam.jpeg",
     icon: "✒️",
     popularity: 0,
-    sales: 0,
+    sales: 50,
     createdAt: "2026-11-16",
   },
   {
@@ -289,7 +289,7 @@ export const products = [
     image: "/products/Pensil_Joyko_2B.jpeg",
     icon: "✏️",
     popularity: 0,
-    sales: 0,
+    sales: 27,
     createdAt: "2026-11-16",
   },
   {
@@ -491,3 +491,12 @@ export const products = [
     createdAt: "2026-11-16",
   },
 ];
+
+const getStableMetric = (id, multiplier, max) =>
+  (Math.imul(Number(id), multiplier) % max) + 1;
+
+export const products = productCatalog.map((product) => ({
+  ...product,
+  popularity: getStableMetric(product.id, 73, 100),
+  sales: getStableMetric(product.id, 199, 500),
+}));

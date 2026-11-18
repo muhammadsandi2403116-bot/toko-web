@@ -12,6 +12,25 @@ import ProductGrid from "@/components/store/ProductGrid";
 
 import { products } from "@/data/products";
 
+const supportedSorts = new Set([
+  "popular",
+  "newest",
+  "bestseller",
+  "price-asc",
+  "price-desc",
+]);
+
+const sortTitles = {
+  popular: "Produk Terpopuler",
+  newest: "Produk Terbaru",
+  bestseller: "Produk Terlaris",
+  "price-asc": "Harga Terendah",
+  "price-desc": "Harga Tertinggi",
+};
+
+const getSortFromUrl = (sort) =>
+  supportedSorts.has(sort) ? sort : "popular";
+
 const normalizeName = (value) =>
   String(value || "")
     .trim()
@@ -23,6 +42,7 @@ export default function ProductPageClient() {
 
   const categoryFromUrl = searchParams.get("category");
   const searchQuery = searchParams.get("q") || "";
+  const sortFromUrl = searchParams.get("sort");
 
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCategoryParent, setSelectedCategoryParent] =
@@ -34,7 +54,14 @@ export default function ProductPageClient() {
   const [appliedMinPrice, setAppliedMinPrice] = useState("");
   const [appliedMaxPrice, setAppliedMaxPrice] = useState("");
 
-  const [sortBy, setSortBy] = useState("popular");
+  const [sortSelection, setSortSelection] = useState(() => ({
+    source: sortFromUrl,
+    value: getSortFromUrl(sortFromUrl),
+  }));
+  const sortBy =
+    sortSelection.source === sortFromUrl
+      ? sortSelection.value
+      : getSortFromUrl(sortFromUrl);
 
   // MEMBUAT DAFTAR KATEGORI DARI DATA PRODUK
   const availableCategories = useMemo(() => {
@@ -90,6 +117,13 @@ export default function ProductPageClient() {
   const handleApplyPrice = () => {
     setAppliedMinPrice(draftMinPrice);
     setAppliedMaxPrice(draftMaxPrice);
+  };
+
+  const handleResetPrice = () => {
+    setDraftMinPrice("");
+    setDraftMaxPrice("");
+    setAppliedMinPrice("");
+    setAppliedMaxPrice("");
   };
 
   // FILTER DAN SORTING PRODUK
@@ -257,6 +291,7 @@ export default function ProductPageClient() {
               onMinPriceChange={setDraftMinPrice}
               onMaxPriceChange={setDraftMaxPrice}
               onApplyPrice={handleApplyPrice}
+              onResetPrice={handleResetPrice}
             />
           </aside>
 
@@ -265,8 +300,10 @@ export default function ProductPageClient() {
 
             <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4">
               <ProductToolbar
-                onSortChange={setSortBy}
-                initialSort="popular"
+                sortBy={sortBy}
+                onSortChange={(value) =>
+                  setSortSelection({ source: sortFromUrl, value })
+                }
               />
             </div>
 
@@ -274,7 +311,7 @@ export default function ProductPageClient() {
               <h1 className="text-lg font-semibold text-gray-900">
                 {searchQuery
                   ? `Hasil pencarian: "${searchQuery}"`
-                  : selectedCategory || "Semua Produk"}
+                  : selectedCategory || sortTitles[sortBy]}
               </h1>
 
               <p className="text-sm text-gray-500">
