@@ -2,7 +2,7 @@
 "use client";
 
 import { startTransition, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import Breadcrumb from "@/components/store/Breadcrumb";
@@ -11,6 +11,8 @@ import ProductToolbar from "@/components/store/ProductToolbar";
 import ProductGrid from "@/components/store/ProductGrid";
 
 import { products } from "@/data/products";
+
+const PRODUCTS_PER_PAGE = 12;
 
 const supportedSorts = new Set([
   "popular",
@@ -38,6 +40,8 @@ const normalizeName = (value) =>
     .toLowerCase();
 
 export default function ProductPageClient() {
+  const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const categoryFromUrl = searchParams.get("category");
@@ -62,6 +66,41 @@ export default function ProductPageClient() {
     sortSelection.source === sortFromUrl
       ? sortSelection.value
       : getSortFromUrl(sortFromUrl);
+
+  const navigateWithParams = (params, method = "push") => {
+    const query = params.toString();
+    const href = query ? `${pathname}?${query}` : pathname;
+
+    router[method](href, { scroll: false });
+  };
+
+  const resetPage = () => {
+    if (!searchParams.has("page")) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("page");
+    navigateWithParams(params, "replace");
+  };
+
+  const handlePageChange = (page) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (page === 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(page));
+    }
+
+    navigateWithParams(params);
+  };
+
+  const handleSortChange = (value) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("sort", value);
+    params.delete("page");
+    setSortSelection({ source: sortFromUrl, value });
+    navigateWithParams(params);
+  };
 
   // MEMBUAT DAFTAR KATEGORI DARI DATA PRODUK
   const availableCategories = useMemo(() => {
@@ -111,12 +150,14 @@ export default function ProductPageClient() {
   const handleCategoryChange = (category, parent = "") => {
     setSelectedCategory(category);
     setSelectedCategoryParent(parent);
+    resetPage();
   };
 
   // MENERAPKAN FILTER HARGA
   const handleApplyPrice = () => {
     setAppliedMinPrice(draftMinPrice);
     setAppliedMaxPrice(draftMaxPrice);
+    resetPage();
   };
 
   const handleResetPrice = () => {
@@ -124,6 +165,7 @@ export default function ProductPageClient() {
     setDraftMaxPrice("");
     setAppliedMinPrice("");
     setAppliedMaxPrice("");
+    resetPage();
   };
 
   // FILTER DAN SORTING PRODUK
@@ -237,6 +279,28 @@ export default function ProductPageClient() {
     sortBy,
   ]);
 
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE)
+  );
+  const requestedPage = Math.max(
+    1,
+    Number.parseInt(searchParams.get("page") || "1", 10) || 1
+  );
+  const currentPage = Math.min(requestedPage, pageCount);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * PRODUCTS_PER_PAGE,
+    currentPage * PRODUCTS_PER_PAGE
+  );
+  const firstProductNumber =
+    filteredProducts.length === 0
+      ? 0
+      : (currentPage - 1) * PRODUCTS_PER_PAGE + 1;
+  const lastProductNumber = Math.min(
+    currentPage * PRODUCTS_PER_PAGE,
+    filteredProducts.length
+  );
+
   const hasProductsInSelectedCategory =
     !selectedCategory ||
     products.some((product) => {
@@ -301,9 +365,7 @@ export default function ProductPageClient() {
             <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4">
               <ProductToolbar
                 sortBy={sortBy}
-                onSortChange={(value) =>
-                  setSortSelection({ source: sortFromUrl, value })
-                }
+                onSortChange={handleSortChange}
               />
             </div>
 
@@ -320,7 +382,7 @@ export default function ProductPageClient() {
             </div>
 
             {filteredProducts.length > 0 ? (
-              <ProductGrid products={filteredProducts} />
+              <ProductGrid products={paginatedProducts} />
             ) : (
               <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center">
                 <div className="mb-4 text-5xl">🔎</div>
@@ -352,6 +414,61 @@ export default function ProductPageClient() {
               </div>
             )}
 
+            {filteredProducts.length > 0 && (
+              <nav
+                aria-label="Navigasi halaman produk"
+                className="mt-8 flex flex-col items-center justify-between gap-4 sm:flex-row"
+              >
+                <p className="text-sm text-gray-500">
+                  Menampilkan {firstProductNumber}-{lastProductNumber} dari{" "}
+                  {filteredProducts.length} produk
+                </p>
+
+                {pageCount > 1 && (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Sebelumnya
+                    </button>
+
+                    {Array.from({ length: pageCount }, (_, index) => {
+                      const page = index + 1;
+                      const isCurrentPage = page === currentPage;
+
+                      return (
+                        <button
+                          key={page}
+                          type="button"
+                          onClick={() => handlePageChange(page)}
+                          aria-current={isCurrentPage ? "page" : undefined}
+                          aria-label={`Halaman ${page}`}
+                          className={`min-w-10 rounded-md border px-3 py-2 text-sm font-medium transition ${
+                            isCurrentPage
+                              ? "border-red-600 bg-red-600 text-white"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-red-500 hover:text-red-600"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === pageCount}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Berikutnya
+                    </button>
+                  </div>
+                )}
+              </nav>
+            )}
           </section>
         </div>
       </div>

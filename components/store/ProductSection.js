@@ -6,6 +6,7 @@ import Link from "next/link";
 import ProductCard from "@/components/store/ProductCard";
 
 const INITIAL_PRODUCT_COUNT = 4;
+const MAX_VISIBLE_PRODUCT_COUNT = 16;
 
 export default function ProductSection({
   title,
@@ -14,7 +15,7 @@ export default function ProductSection({
 }) {
   const [showAll, setShowAll] = useState(false);
   const visibleProducts = showAll
-    ? data
+    ? data.slice(0, MAX_VISIBLE_PRODUCT_COUNT)
     : data.slice(0, INITIAL_PRODUCT_COUNT);
 
   return (
