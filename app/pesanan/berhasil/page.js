@@ -22,6 +22,7 @@ export default function ReceiptPage() {
   const [paymentProofPreview, setPaymentProofPreview] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
   const [qrImage, setQrImage] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const formatRupiah = (number) =>
     new Intl.NumberFormat("id-ID", {
@@ -31,43 +32,40 @@ export default function ReceiptPage() {
     }).format(number || 0);
 
   useEffect(() => {
-    let savedOrderData = null;
-    let savedProofPreview = "";
-
-    try {
-      const transactionCode = new URLSearchParams(window.location.search).get(
-        "transactionCode"
-      );
-      const savedOrders = localStorage.getItem("toko-orders");
-      const orders = savedOrders ? JSON.parse(savedOrders) : [];
-      const currentOrder = JSON.parse(
-        localStorage.getItem("toko-current-order") || "null"
-      );
-      const savedOrder = transactionCode
-        ? orders.find((item) => item.transactionCode === transactionCode) ||
-          (currentOrder?.transactionCode === transactionCode
-            ? currentOrder
-            : null)
-        : currentOrder;
-
-      if (savedOrder) {
-        savedOrderData = savedOrder;
-        const proofKey = savedOrderData.paymentProof?.storageKey;
-        if (proofKey) {
-          savedProofPreview = localStorage.getItem(proofKey) || "";
+    const controller = new AbortController();
+    async function loadOrder() {
+      try {
+        const transactionCode = new URLSearchParams(window.location.search).get(
+          "transactionCode"
+        );
+        if (!transactionCode) {
+          setLoadError("Kode transaksi tidak tersedia.");
+          return;
         }
+
+        const response = await fetch(
+          `/api/orders/${encodeURIComponent(transactionCode)}`,
+          { cache: "no-store", signal: controller.signal }
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Rincian pesanan gagal dimuat.");
+        }
+
+        setOrder(result.order);
+        setPaymentProofPreview(result.order.paymentProofData || "");
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Gagal mengambil data transaksi:", error);
+          setLoadError(error.message || "Rincian pesanan gagal dimuat.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoaded(true);
       }
-    } catch (error) {
-      console.error("Gagal mengambil data transaksi:", error);
     }
 
-    const frame = requestAnimationFrame(() => {
-      setOrder(savedOrderData);
-      setPaymentProofPreview(savedProofPreview);
-      setIsLoaded(true);
-    });
-
-    return () => cancelAnimationFrame(frame);
+    void loadOrder();
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -94,11 +92,10 @@ export default function ReceiptPage() {
 
   const handleDownloadReceipt = async () => {
     if (!isLoaded) {
-      return (
-        <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-          <p className="text-gray-600">Memuat data transaksi...</p>
-        </main>
-      );
+      notify("Data transaksi masih dimuat. Coba kembali sebentar lagi.", {
+        type: "info",
+      });
+      return;
     }
 
     if (!order) {
@@ -132,7 +129,7 @@ export default function ReceiptPage() {
   
       // LOGO TOKO
       try {
-        const response = await fetch("/logo-toko.png");
+        const response = await fetch("/icons/Logo.png");
   
         if (response.ok) {
           const blob = await response.blob();
@@ -362,11 +359,7 @@ export default function ReceiptPage() {
       doc.text("Metode Pembayaran: QRIS", margin, y);
       y += 7;
   
-      doc.text(
-        "Status: Simulasi / belum diverifikasi",
-        margin,
-        y
-      );
+      doc.text(`Status: ${order.paymentStatus || "Tidak tersedia"}`, margin, y);
   
       y += 12;
   
@@ -425,13 +418,19 @@ export default function ReceiptPage() {
     }
   };
  
+  if (!isLoaded) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <p className="text-gray-600">Memuat data transaksi...</p>
+      </main>
+    );
+  }
+
   if (!order) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
-          <p className="text-gray-600">
-            Data transaksi tidak ditemukan.
-          </p>
+          <p className="text-gray-600">{loadError || "Data transaksi tidak ditemukan."}</p>
 
           <Link
             href="/produk"
@@ -540,7 +539,10 @@ export default function ReceiptPage() {
 
                 <div>
                   <h2 className="text-xl font-bold text-green-700 sm:text-2xl">
-                    Pesanan Dikonfirmasi
+                    {String(order.paymentStatus || "Status tidak tersedia")
+                      .split("_")
+                      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+                      .join(" ")}
                   </h2>
 
                 </div>
@@ -582,7 +584,7 @@ export default function ReceiptPage() {
                     />
                   </a>
                   <p className="mt-1 text-xs text-gray-500">
-                    {order.paymentProof?.fileName}
+                    {order.paymentProofName}
                   </p>
                 </div>
               )}

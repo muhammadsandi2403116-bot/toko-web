@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function AuthForm({ mode, callbackUrl, hasError }) {
   const [message, setMessage] = useState("");
@@ -45,10 +46,16 @@ export default function AuthForm({ mode, callbackUrl, hasError }) {
         <Link
           href="/"
           aria-label="Logo Toko, kembali ke beranda"
-          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border-2 border-neutral-800 text-[10px] font-bold leading-tight"
+          className="flex h-14 w-fit shrink-0 items-center justify-center rounded-xl p-1"
         >
-          <span>Logo</span>
-          <span>Toko</span>
+          <Image
+            src="/icons/Logo.png"
+            alt="Logo Toko Barokah"
+            width={72}
+            height={62}
+            priority
+            className="h-12 w-auto object-contain sm:h-14"
+          />
         </Link>
 
         <div className="mx-auto my-auto w-full max-w-md py-10 text-center">
