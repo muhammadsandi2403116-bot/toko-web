@@ -12,6 +12,10 @@ import {
   getItemPricing,
 } from "@/lib/promotions";
 import { useNotification } from "@/components/ui/NotificationProvider";
+import {
+  addTransaction,
+  updateTransactionById,
+} from "@/lib/transaction-storage";
 
 const PAYMENT_PROVIDERS = [
   {
@@ -189,6 +193,14 @@ export default function CheckoutPage() {
         throw new Error(result.error || "Pesanan gagal disimpan.");
       }
 
+      addTransaction({
+        ...result.order,
+        transactionDate:
+          result.order.transactionDate || new Date().toISOString(),
+        paymentStatus: "SEDANG_DISIAPKAN",
+      });
+      localStorage.removeItem("toko-checkout-key");
+      localStorage.removeItem("toko-checkout-fingerprint");
       setCreatedOrder(result.order);
       setShowQris(true);
 
@@ -323,6 +335,13 @@ export default function CheckoutPage() {
         throw new Error(result.error || "Gagal menyimpan detail pembayaran.");
       }
 
+      updateTransactionById(createdOrder.transactionCode, {
+        paymentProvider,
+        senderName: senderName.trim(),
+        paymentProofName: proofFile.name,
+        paymentProofData: proofData,
+        paymentStatus: "SEDANG_DISIAPKAN",
+      });
       localStorage.removeItem("toko-checkout-key");
       localStorage.removeItem("toko-checkout-fingerprint");
       localStorage.setItem("toko-cart", JSON.stringify([]));

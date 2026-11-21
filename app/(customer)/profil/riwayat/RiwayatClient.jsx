@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import {
+  formatTransactionStatus,
+  getTransactions,
+  syncRemoteTransactions,
+} from "@/lib/transaction-storage";
 
 function formatRupiah(number) {
   return new Intl.NumberFormat("id-ID", {
@@ -10,13 +15,6 @@ function formatRupiah(number) {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(number || 0);
-}
-
-function formatPaymentStatus(status) {
-  return String(status || "Status tidak tersedia")
-    .split("_")
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(" ");
 }
 
 export default function PurchaseHistoryPage() {
@@ -34,6 +32,10 @@ export default function PurchaseHistoryPage() {
     const controller = new AbortController();
     async function loadOrders() {
       try {
+        const localOrders = getTransactions();
+        if (localOrders.length > 0) {
+          setOrders(localOrders);
+        }
         const response = await fetch("/api/orders", {
           cache: "no-store",
           signal: controller.signal,
@@ -42,12 +44,18 @@ export default function PurchaseHistoryPage() {
         if (!response.ok) {
           throw new Error(result.error || "Riwayat pesanan gagal dimuat.");
         }
-        setOrders(result.orders);
+        setOrders(syncRemoteTransactions(result.orders));
         setError("");
       } catch (loadError) {
         if (loadError.name !== "AbortError") {
           console.error("Gagal memuat riwayat pembelian:", loadError);
-          setError(loadError.message || "Riwayat pesanan gagal dimuat.");
+          const localOrders = getTransactions();
+          if (localOrders.length > 0) {
+            setOrders(localOrders);
+            setError("");
+          } else {
+            setError(loadError.message || "Riwayat pesanan gagal dimuat.");
+          }
         }
       } finally {
         if (!controller.signal.aborted) setLoadedForUserId(userId);
@@ -121,7 +129,7 @@ export default function PurchaseHistoryPage() {
                       })}
                     </div>
                     <span className="rounded-full bg-yellow-100 px-3 py-1 text-sm font-semibold text-yellow-700">
-                      {formatPaymentStatus(order.paymentStatus)}
+                      {formatTransactionStatus(order.paymentStatus)}
                     </span>
                   </div>
 
