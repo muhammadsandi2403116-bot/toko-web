@@ -8,6 +8,12 @@ import jsPDF from "jspdf";
 import QRCode from "qrcode";
 import { adminWhatsAppUrl } from "@/lib/whatsapp";
 import { getCartSummary, getItemPricing } from "@/lib/promotions";
+import {
+  addTransaction,
+  formatTransactionStatus,
+  getTransactionById,
+  updateTransactionById,
+} from "@/lib/transaction-storage";
 import { useNotification } from "@/components/ui/NotificationProvider";
 
 function getTransactionQrPayload(transactionCode) {
@@ -43,6 +49,12 @@ export default function ReceiptPage() {
           return;
         }
 
+        const localOrder = getTransactionById(transactionCode);
+        if (localOrder) {
+          setOrder(localOrder);
+          setPaymentProofPreview(localOrder.paymentProofData || "");
+        }
+
         const response = await fetch(
           `/api/orders/${encodeURIComponent(transactionCode)}`,
           { cache: "no-store", signal: controller.signal }
@@ -52,8 +64,15 @@ export default function ReceiptPage() {
           throw new Error(result.error || "Rincian pesanan gagal dimuat.");
         }
 
-        setOrder(result.order);
-        setPaymentProofPreview(result.order.paymentProofData || "");
+        const remoteOrder = result.order;
+        const syncedOrder = addTransaction(remoteOrder);
+        if (syncedOrder) {
+          setOrder(syncedOrder);
+          setPaymentProofPreview(syncedOrder.paymentProofData || "");
+        }
+        updateTransactionById(transactionCode, {
+          paymentStatus: remoteOrder.paymentStatus,
+        });
       } catch (error) {
         if (error.name !== "AbortError") {
           console.error("Gagal mengambil data transaksi:", error);
@@ -359,7 +378,11 @@ export default function ReceiptPage() {
       doc.text("Metode Pembayaran: QRIS", margin, y);
       y += 7;
   
-      doc.text(`Status: ${order.paymentStatus || "Tidak tersedia"}`, margin, y);
+      doc.text(
+        `Status: ${formatTransactionStatus(order.paymentStatus)}`,
+        margin,
+        y
+      );
   
       y += 12;
   
@@ -539,10 +562,7 @@ export default function ReceiptPage() {
 
                 <div>
                   <h2 className="text-xl font-bold text-green-700 sm:text-2xl">
-                    {String(order.paymentStatus || "Status tidak tersedia")
-                      .split("_")
-                      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-                      .join(" ")}
+                    {formatTransactionStatus(order.paymentStatus)}
                   </h2>
 
                 </div>

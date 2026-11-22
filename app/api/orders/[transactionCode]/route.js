@@ -127,7 +127,7 @@ export async function PUT(request, { params }) {
         senderName,
         paymentProofName: body.paymentProofName || null,
         paymentProofData,
-        paymentStatus: "MENUNGGU_VERIFIKASI",
+        paymentStatus: "SEDANG_DISIAPKAN",
       },
     });
 

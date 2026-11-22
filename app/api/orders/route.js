@@ -189,7 +189,7 @@ export async function POST(request) {
           promotionDiscount: summary.discount,
           bonusQuantity: summary.bonusQuantity,
           paymentMethod: "QRIS",
-          paymentStatus: "SIMULASI",
+          paymentStatus: "SEDANG_DISIAPKAN",
         },
       });
     });
