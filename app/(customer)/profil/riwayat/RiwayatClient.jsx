@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import {
   formatTransactionStatus,
   getTransactions,
+  hasPaymentProof,
   syncRemoteTransactions,
 } from "@/lib/transaction-storage";
 
@@ -32,7 +33,7 @@ export default function PurchaseHistoryPage() {
     const controller = new AbortController();
     async function loadOrders() {
       try {
-        const localOrders = getTransactions();
+        const localOrders = getTransactions().filter(hasPaymentProof);
         if (localOrders.length > 0) {
           setOrders(localOrders);
         }
@@ -49,7 +50,7 @@ export default function PurchaseHistoryPage() {
       } catch (loadError) {
         if (loadError.name !== "AbortError") {
           console.error("Gagal memuat riwayat pembelian:", loadError);
-          const localOrders = getTransactions();
+          const localOrders = getTransactions().filter(hasPaymentProof);
           if (localOrders.length > 0) {
             setOrders(localOrders);
             setError("");

@@ -12,6 +12,7 @@ import {
   addTransaction,
   formatTransactionStatus,
   getTransactionById,
+  hasPaymentProof,
   updateTransactionById,
 } from "@/lib/transaction-storage";
 import { useNotification } from "@/components/ui/NotificationProvider";
@@ -50,7 +51,7 @@ export default function ReceiptPage() {
         }
 
         const localOrder = getTransactionById(transactionCode);
-        if (localOrder) {
+        if (hasPaymentProof(localOrder)) {
           setOrder(localOrder);
           setPaymentProofPreview(localOrder.paymentProofData || "");
         }
@@ -879,12 +880,14 @@ export default function ReceiptPage() {
             Download Bukti Pembelian
           </button>
 
-          <Link
-            href="/"
-            className="block w-full rounded-xl border-2 border-red-600 px-5 py-4 text-center text-lg font-bold text-red-600 transition hover:bg-red-50 print:hidden"
-          >
-            Kembali ke Beranda
-          </Link>
+          <form action="/" method="get">
+            <button
+              type="submit"
+              className="block w-full rounded-xl border-2 border-red-600 px-5 py-4 text-center text-lg font-bold text-red-600 transition hover:bg-red-50 print:hidden"
+            >
+              Kembali ke Beranda
+            </button>
+          </form>
         </div>
       </div>
     </main>

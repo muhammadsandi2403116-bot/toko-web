@@ -4,7 +4,6 @@
 import { startTransition, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { adminWhatsAppUrl } from "@/lib/whatsapp";
 import {
@@ -12,10 +11,7 @@ import {
   getItemPricing,
 } from "@/lib/promotions";
 import { useNotification } from "@/components/ui/NotificationProvider";
-import {
-  addTransaction,
-  updateTransactionById,
-} from "@/lib/transaction-storage";
+import { addTransaction } from "@/lib/transaction-storage";
 
 const PAYMENT_PROVIDERS = [
   {
@@ -73,9 +69,8 @@ async function hasValidImageSignature(file) {
 }
 
 export default function CheckoutPage() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const { notify } = useNotification();
-  const router = useRouter();
   const user = session?.user;
   const [cart, setCart] = useState([]);
   const [name, setName] = useState("");
@@ -89,9 +84,6 @@ export default function CheckoutPage() {
   const [proofPreview, setProofPreview] = useState("");
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [isValidatingProof, setIsValidatingProof] = useState(false);
-  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  const [createdOrder, setCreatedOrder] = useState(null);
-  const orderRequestRef = useRef(false);
   const paymentRequestRef = useRef(false);
 
   const formatRupiah = (number) =>
@@ -130,9 +122,7 @@ export default function CheckoutPage() {
     return () => URL.revokeObjectURL(proofPreview);
   }, [proofPreview]);
 
-  const handleConfirmOrder = async () => {
-    if (orderRequestRef.current) return;
-
+  const handleConfirmOrder = () => {
     const whatsappValue = String(user?.whatsapp || whatsapp).trim();
     const normalizedWhatsapp = whatsappValue.replace(/[\s()-]/g, "");
 
@@ -159,71 +149,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    orderRequestRef.current = true;
-    setIsCreatingOrder(true);
-
-    try {
-      const checkoutItems = cart.map(({ id, quantity }) => ({ id, quantity }));
-      const cartFingerprint = JSON.stringify(checkoutItems);
-      let checkoutKey = localStorage.getItem("toko-checkout-key");
-      const savedFingerprint = localStorage.getItem("toko-checkout-fingerprint");
-      if (checkoutKey && savedFingerprint !== cartFingerprint) {
-        localStorage.removeItem("toko-checkout-key");
-        localStorage.removeItem("toko-checkout-fingerprint");
-        checkoutKey = null;
-      }
-      if (!checkoutKey) {
-        checkoutKey = crypto.randomUUID();
-        localStorage.setItem("toko-checkout-key", checkoutKey);
-        localStorage.setItem("toko-checkout-fingerprint", cartFingerprint);
-      }
-
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          checkoutKey,
-          name: user?.name || name.trim(),
-          whatsapp: whatsappValue,
-          items: checkoutItems,
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Pesanan gagal disimpan.");
-      }
-
-      addTransaction({
-        ...result.order,
-        transactionDate:
-          result.order.transactionDate || new Date().toISOString(),
-        paymentStatus: "SEDANG_DISIAPKAN",
-      });
-      localStorage.removeItem("toko-checkout-key");
-      localStorage.removeItem("toko-checkout-fingerprint");
-      setCreatedOrder(result.order);
-      setShowQris(true);
-
-      if (user && !user.whatsapp) {
-        try {
-          await update();
-        } catch (error) {
-          console.error("Profil WhatsApp tersimpan, tetapi sesi gagal diperbarui:", error);
-          notify("Pesanan tersimpan. Muat ulang halaman untuk memperbarui profil.", {
-            type: "warning",
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Gagal menyimpan pesanan:", error);
-      notify(error.message || "Pesanan gagal disimpan. Silakan coba kembali.", {
-        type: "error",
-        duration: 6000,
-      });
-    } finally {
-      orderRequestRef.current = false;
-      setIsCreatingOrder(false);
-    }
+    setShowQris(true);
   };
 
   const handleProofFileChange = async (event) => {
@@ -306,36 +232,48 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!createdOrder?.transactionCode) {
-      notify("Pesanan belum tersimpan. Konfirmasikan pesanan terlebih dahulu.", {
-        type: "error",
-      });
-      return;
-    }
-
     paymentRequestRef.current = true;
     setIsSavingPayment(true);
     try {
       const proofData = await readFileAsDataUrl(proofFile);
-      const response = await fetch(
-        `/api/orders/${encodeURIComponent(createdOrder.transactionCode)}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            paymentProvider,
-            senderName: senderName.trim(),
-            paymentProofName: proofFile.name,
-            paymentProofData: proofData,
-          }),
-        }
-      );
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Gagal menyimpan detail pembayaran.");
+      const checkoutItems = cart.map(({ id, quantity }) => ({ id, quantity }));
+      const cartFingerprint = JSON.stringify(checkoutItems);
+      let checkoutKey = localStorage.getItem("toko-checkout-key");
+      const savedFingerprint = localStorage.getItem("toko-checkout-fingerprint");
+      if (checkoutKey && savedFingerprint !== cartFingerprint) {
+        localStorage.removeItem("toko-checkout-key");
+        localStorage.removeItem("toko-checkout-fingerprint");
+        checkoutKey = null;
+      }
+      if (!checkoutKey) {
+        checkoutKey = crypto.randomUUID();
+        localStorage.setItem("toko-checkout-key", checkoutKey);
+        localStorage.setItem("toko-checkout-fingerprint", cartFingerprint);
       }
 
-      updateTransactionById(createdOrder.transactionCode, {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkoutKey,
+          name: user?.name || name.trim(),
+          whatsapp: String(user?.whatsapp || whatsapp).trim(),
+          items: checkoutItems,
+          paymentProvider,
+          senderName: senderName.trim(),
+          paymentProofName: proofFile.name,
+          paymentProofData: proofData,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Pesanan gagal disimpan.");
+      }
+
+      addTransaction({
+        ...result.order,
+        transactionDate:
+          result.order.transactionDate || new Date().toISOString(),
         paymentProvider,
         senderName: senderName.trim(),
         paymentProofName: proofFile.name,
@@ -345,11 +283,14 @@ export default function CheckoutPage() {
       localStorage.removeItem("toko-checkout-key");
       localStorage.removeItem("toko-checkout-fingerprint");
       localStorage.setItem("toko-cart", JSON.stringify([]));
-      router.push(
+
+      const receiptUrl = new URL(
         `/pesanan/berhasil?transactionCode=${encodeURIComponent(
-          createdOrder.transactionCode
-        )}`
+          result.order.transactionCode
+        )}`,
+        window.location.origin
       );
+      window.location.assign(receiptUrl);
     } catch (error) {
       console.error("Gagal menyimpan detail pembayaran:", error);
       notify(error.message || "Gagal menyimpan bukti pembayaran.", {
@@ -884,10 +825,9 @@ export default function CheckoutPage() {
             <button
                 type="button"
                 onClick={handleConfirmOrder}
-                disabled={isCreatingOrder}
                 className="w-full rounded-xl bg-red-600 px-5 py-4 text-lg font-bold text-white transition hover:bg-red-700"
             >
-                  {isCreatingOrder ? "Menyimpan Pesanan..." : "Konfirmasi Pesanan"}
+                  Konfirmasi Pesanan
             </button>
 
             <p className="mt-3 text-center text-sm text-gray-500">

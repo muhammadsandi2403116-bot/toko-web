@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { products } from "@/data/products";
 import { prisma } from "@/lib/prisma";
 import { addPricingToItems, getCartSummary } from "@/lib/promotions";
+import { validatePaymentDetails } from "@/lib/payment-proof";
 import { normalizeWhatsapp } from "@/lib/whatsapp-number";
 
 const productById = new Map(products.map((product) => [String(product.id), product]));
@@ -48,7 +49,10 @@ export async function GET() {
 
   try {
     const orders = await prisma.order.findMany({
-      where: { userId: session.user.id },
+      where: {
+        userId: session.user.id,
+        paymentProofData: { not: null },
+      },
       orderBy: { createdAt: "desc" },
       select: {
         transactionCode: true,
@@ -66,6 +70,7 @@ export async function GET() {
       orders: orders.map(({ createdAt, ...order }) => ({
         ...order,
         transactionDate: createdAt,
+        hasPaymentProof: true,
       })),
     });
   } catch (error) {
@@ -100,6 +105,11 @@ export async function POST(request) {
   const whatsapp = normalizeWhatsapp(body?.whatsapp);
   if (!whatsapp) {
     return Response.json({ error: "Format nomor WhatsApp tidak valid." }, { status: 400 });
+  }
+
+  const paymentDetails = validatePaymentDetails(body);
+  if (paymentDetails.error) {
+    return Response.json({ error: paymentDetails.error }, { status: 400 });
   }
 
   const seenProductIds = new Set();
@@ -138,7 +148,13 @@ export async function POST(request) {
       return Response.json({ error: "Identitas checkout tidak dapat digunakan." }, { status: 409 });
     }
     if (existing) {
-      return Response.json({ order: serializeOrder(existing) });
+      const completedOrder = existing.paymentProofData
+        ? existing
+        : await prisma.order.update({
+            where: { transactionCode: existing.transactionCode },
+            data: paymentDetails,
+          });
+      return Response.json({ order: serializeOrder(completedOrder) });
     }
 
     const order = await prisma.$transaction(async (transaction) => {
@@ -190,6 +206,7 @@ export async function POST(request) {
           bonusQuantity: summary.bonusQuantity,
           paymentMethod: "QRIS",
           paymentStatus: "SEDANG_DISIAPKAN",
+          ...paymentDetails,
         },
       });
     });
