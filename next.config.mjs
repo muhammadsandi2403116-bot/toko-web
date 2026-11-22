@@ -2,6 +2,7 @@
 const nextConfig = {
   experimental: {
     agentFeedback: true,
+    agentUpgrade: "security",
 
     instantInsights: {
       validationLevel: "manual-warning",
